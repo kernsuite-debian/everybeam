@@ -1,0 +1,16 @@
+# Copyright (C) 2020 ASTRON (Netherlands Institute for Radio Astronomy)
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# base
+FROM ubuntu:18.04
+RUN apt-get update && apt-get upgrade -y && \
+# install astronomy packages
+    apt-get -y install casacore-dev python-casacore \
+        aoflagger-dev libcfitsio-dev wcslib-dev
+# install misc packages
+RUN apt-get update && \
+    apt-get -y install wget git make cmake g++ doxygen graphviz \
+# install dependencies
+        libboost-all-dev libhdf5-dev libfftw3-dev \
+        libblas-dev liblapack-dev libgsl-dev libxml2-dev \
+        libpng-dev libgtkmm-3.0-dev libpython3-dev

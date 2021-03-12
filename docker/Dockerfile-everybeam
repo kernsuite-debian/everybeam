@@ -1,0 +1,12 @@
+# Copyright (C) 2020 ASTRON (Netherlands Institute for Radio Astronomy)
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+ARG BASE_TAG=latest
+FROM everybeam_base:$BASE_TAG
+
+ENV EVERYBEAMDIR /opt/everybeam
+ADD . ${EVERYBEAMDIR}/EveryBeam
+
+RUN mkdir -p ${EVERYBEAMDIR}/build && cd ${EVERYBEAMDIR}/build \
+    && cmake -DBUILD_WITH_PYTHON=ON -DBUILD_APT_PACKAGES=ON -DCMAKE_INSTALL_PREFIX=.. ../EveryBeam \
+    && make -j8 && make install -j8
