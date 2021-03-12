@@ -1,0 +1,32 @@
+Source: everybeam
+Section: science
+Priority: optional
+Maintainer: KERN packaging <packaging@kernsuite.info>
+Build-Depends:
+ debhelper-compat (= 12),
+ cmake,
+ libhdf5-dev,
+ pybind11-dev,
+ python3-distutils,
+ casacore-dev,
+ libboost-dev,
+ libfftw3-dev,
+ libcfitsio-dev,
+ libeigen3-dev,
+ wget
+Standards-Version: 4.4.1
+Homepage: https://git.astron.nl/RD/EveryBeam
+
+Package: everybeam
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: computes beam response for variety of radio telescopes
+ This package can be used to compute the beam response for a variety of
+ radio telescopes, i.e.:
+ .
+ * LOFAR
+ * OSKAR
+ * MWA
+ * VLA
+ * ATCA
+

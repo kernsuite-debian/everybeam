@@ -51,8 +51,10 @@ endif()
 
 # Include aocommon/eigen3/pybind11 headers
 include_directories("${CMAKE_SOURCE_DIR}/external/aocommon/include/")
-include_directories("${CMAKE_SOURCE_DIR}/external/eigen/")
-add_subdirectory("${CMAKE_SOURCE_DIR}/external/pybind11")
+
+include_directories("/usr/include/eigen3")
+
+find_package(pybind11 REQUIRED)
 include_directories(${pybind11_INCLUDE_DIR})
 
 # Find and include HDF5

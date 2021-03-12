@@ -1,0 +1,17 @@
+Description: External libs missing
+
+--- everybeam-0.1.2.orig/CMakeLists.txt
++++ everybeam-0.1.2/CMakeLists.txt
+@@ -51,8 +51,10 @@ endif()
+ 
+ # Include aocommon/eigen3/pybind11 headers
+ include_directories("${CMAKE_SOURCE_DIR}/external/aocommon/include/")
+-include_directories("/us
+-add_subdirectory("${CMAKE_SOURCE_DIR}/external/pybind11")
++
++include_directories("/usr/include/eigen3")
++
++find_package(pybind11 REQUIRED)
+ include_directories(${pybind11_INCLUDE_DIR})
+ 
+ # Find and include HDF5
