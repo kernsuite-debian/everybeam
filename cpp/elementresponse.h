@@ -6,6 +6,7 @@
 
 #include <complex>
 #include <ostream>
+#include <aocommon/matrix2x2.h>
 
 #include "common/mutable_ptr.h"
 
@@ -16,21 +17,35 @@ template <typename T>
 class MutablePtr;
 }
 
-enum ElementResponseModel {
+struct Options;
+
+enum class ElementResponseModel {
   /// The default will select the default element response model
   /// based on the telescope: e.g. LOFAR will use kHamaker,
   /// OSKAR will select kOSKARSphericalWave.
-  kDefault,
-  kHamaker,
-  kLOBES,
-  kOSKARDipole,
-  kOSKARSphericalWave
+  ///
+  /// @note The values are part of the public ABI.
+  //
+  // kHamakerLba is specifically introduced for AARTFAAC observations, in which
+  // case the type HBA/LBA cannot be inferred from the station name
+  kDefault = 0,
+  kHamaker = 1,
+  kHamakerLba = 2,
+  kLOBES = 3,
+  kOSKARDipole = 4,
+  kOSKARSphericalWave = 5,
+  kSkaMidAnalytical = 6,
+  kAartfaacInner = 7,
+  kAartfaacOuter = 8
 };
 
 std::ostream& operator<<(std::ostream& os, ElementResponseModel model);
 
+ElementResponseModel ElementResponseModelFromString(
+    const std::string& element_response);
+
 /**
- * @brief Virtual class for the element response model. All the
+ * @brief Abstract class for the element response model. All the
  * (antenna/element) response models inherit from this class.
  *
  */
@@ -41,6 +56,8 @@ class ElementResponse {
   typedef common::MutablePtr<ElementResponse>
       Ptr;  //!< Pointer to ElementResponse object
 
+  virtual ElementResponseModel GetModel() const = 0;
+
   /**
    * @brief Virtual implementation of Response method
    *
@@ -49,8 +66,8 @@ class ElementResponse {
    * @param phi Angle in the xy-plane wrt. x-axis  (rad)
    * @param result Pointer to 2x2 array of Jones matrix
    */
-  virtual void Response(double freq, double theta, double phi,
-                        std::complex<double> (&result)[2][2]) const = 0;
+  virtual aocommon::MC2x2 Response(double freq, double theta,
+                                   double phi) const = 0;
 
   /**
    * @brief Virtual implementation of Response method
@@ -61,10 +78,14 @@ class ElementResponse {
    * @param phi Angle in the xy-plane wrt. x-axis  (rad)
    * @param result Pointer to 2x2 array of Jones matrix
    */
-  virtual void Response(int element_id, double freq, double theta, double phi,
-                        std::complex<double> (&result)[2][2]) const {
-    Response(freq, theta, phi, result);
+  virtual aocommon::MC2x2 Response([[maybe_unused]] int element_id, double freq,
+                                   double theta, double phi) const {
+    return Response(freq, theta, phi);
   }
+
+  static std::shared_ptr<ElementResponse> GetInstance(
+      ElementResponseModel model, const std::string& name,
+      const Options& options);
 };
 }  // namespace everybeam
 #endif

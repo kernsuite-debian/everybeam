@@ -6,8 +6,10 @@
 
 #include "../telescope/telescope.h"
 
+#include <aocommon/uvector.h>
 #include <aocommon/matrix2x2.h>
 #include <aocommon/matrix4x4.h>
+#include <aocommon/hmatrix4x4.h>
 #include <vector>
 #include <complex>
 #include <stdexcept>
@@ -16,14 +18,15 @@ using aocommon::HMC4x4;
 using aocommon::MC2x2;
 using aocommon::MC4x4;
 using aocommon::UVector;
-using everybeam::common::FFTResampler;
-using everybeam::griddedresponse::GriddedResponse;
 
-void GriddedResponse::CalculateIntegratedResponse(
-    double* buffer, double time, double frequency, size_t field_id,
-    size_t undersampling_factor, const std::vector<double>& baseline_weights) {
-  size_t nstations = telescope_->GetNrStations();
-  size_t nbaselines = nstations * (nstations + 1) / 2;
+namespace everybeam {
+namespace griddedresponse {
+void GriddedResponse::IntegratedResponse(
+    BeamMode beam_mode, float* buffer, double time, double frequency,
+    size_t field_id, size_t undersampling_factor,
+    const std::vector<double>& baseline_weights) {
+  const size_t nstations = telescope_->GetNrStations();
+  const size_t nbaselines = nstations * (nstations + 1) / 2;
   if (baseline_weights.size() != nbaselines) {
     throw std::runtime_error("baseline_weights vector has incorrect size.");
   }
@@ -32,8 +35,12 @@ void GriddedResponse::CalculateIntegratedResponse(
       std::accumulate(baseline_weights.begin(), baseline_weights.end(), 0.0);
 
   // Copy coordinate members
-  size_t width_original = width_, height_original = height_;
-  double dl_original = dl_, dm_original = dm_;
+  const size_t width_original = width_;
+  const size_t height_original = height_;
+  const double dl_original = dl_;
+  const double dm_original = dm_;
+
+  if (!PerformUndersampling()) undersampling_factor = 1;
 
   width_ /= undersampling_factor;
   height_ /= undersampling_factor;
@@ -43,7 +50,7 @@ void GriddedResponse::CalculateIntegratedResponse(
   // Init (Hermitian) Mueller matrix for every pixel in the coarse grid
   size_t npixels = width_ * height_;
   std::vector<HMC4x4> matrices(npixels, HMC4x4::Zero());
-  MakeIntegratedSnapshot(matrices, time, frequency, field_id,
+  MakeIntegratedSnapshot(beam_mode, matrices, time, frequency, field_id,
                          baseline_weights.data());
 
   for (HMC4x4& matrix : matrices) {
@@ -60,9 +67,9 @@ void GriddedResponse::CalculateIntegratedResponse(
   dm_ = dm_original;
 }
 
-void GriddedResponse::CalculateIntegratedResponse(
-    double* buffer, const std::vector<double>& time_array, double frequency,
-    size_t field_id, size_t undersampling_factor,
+void GriddedResponse::IntegratedResponse(
+    BeamMode beam_mode, float* buffer, const std::vector<double>& time_array,
+    double frequency, size_t field_id, size_t undersampling_factor,
     const std::vector<double>& baseline_weights) {
   size_t nstations = telescope_->GetNrStations();
   size_t nbaselines = nstations * (nstations + 1) / 2;
@@ -88,7 +95,8 @@ void GriddedResponse::CalculateIntegratedResponse(
   std::vector<HMC4x4> matrices(npixels, HMC4x4::Zero());
 
   for (std::size_t tstep = 0; tstep != time_array.size(); ++tstep) {
-    MakeIntegratedSnapshot(matrices, time_array[tstep], frequency, field_id,
+    MakeIntegratedSnapshot(beam_mode, matrices, time_array[tstep], frequency,
+                           field_id,
                            baseline_weights.data() + tstep * nbaselines);
   }
 
@@ -107,14 +115,16 @@ void GriddedResponse::CalculateIntegratedResponse(
 }
 
 void GriddedResponse::MakeIntegratedSnapshot(
-    std::vector<HMC4x4>& matrices, double time, double frequency,
-    size_t field_id, const double* baseline_weights_interval) {
-  size_t nstations = telescope_->GetNrStations();
+    BeamMode beam_mode, std::vector<HMC4x4>& matrices, double time,
+    double frequency, size_t field_id,
+    const double* baseline_weights_interval) {
+  const size_t nstations = telescope_->GetNrStations();
   UVector<std::complex<float>> buffer_undersampled(
       GetStationBufferSize(nstations));
-  CalculateAllStations(buffer_undersampled.data(), time, frequency, field_id);
+  ResponseAllStations(beam_mode, buffer_undersampled.data(), time, frequency,
+                      field_id);
 
-  size_t npixels = width_ * height_;
+  const size_t npixels = width_ * height_;
   for (size_t y = 0; y != height_; ++y) {
     for (size_t x = 0; x != width_; ++x) {
       size_t index = 0;
@@ -152,22 +162,21 @@ void GriddedResponse::MakeIntegratedSnapshot(
 }
 
 void GriddedResponse::DoFFTResampling(
-    double* buffer, int width_in, int height_in, int width_out, int height_out,
+    float* buffer, int width_in, int height_in, int width_out, int height_out,
     const std::vector<aocommon::HMC4x4>& matrices) {
   // (FFT) resampling, run multi-threaded?
-  FFTResampler resampler(width_in, height_in, width_out, height_out);
+  common::FFTResampler resampler(width_in, height_in, width_out, height_out);
+  resampler.SetWindowFunction(aocommon::WindowFunction::RaisedHann, true);
   UVector<float> lowres_input(width_in * height_in);
   // Loop over the "double"  representation of the HMC4x4 Hermitian matrix
   for (size_t p = 0; p != 16; ++p) {
     for (int i = 0; i != width_in * height_in; ++i) {
       lowres_input[i] = matrices[i].Data(p);
     }
-    // Resample and write to the output buffer
-    UVector<float> hires_output(width_out * height_out);
-    resampler.Resample(lowres_input.data(), hires_output.data());
-    // Copy hires_output (float) to buffer (double), conversion is implicit in
-    // std::copy
-    std::copy(hires_output.begin(), hires_output.end(),
-              buffer + p * width_out * height_out);
+    // Resample and write to the "p-th image" in the output buffer
+    resampler.Resample(lowres_input.data(),
+                       buffer + p * width_out * height_out);
   }
 }
+}  // namespace griddedresponse
+}  // namespace everybeam

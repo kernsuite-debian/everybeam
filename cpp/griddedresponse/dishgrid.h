@@ -13,36 +13,39 @@ namespace griddedresponse {
 
 /**
  * @brief Class for computing the gridded response of dish telescopes,
- * e.g. VLA, ATCA.
+ * e.g. VLA, ATCA, GMRT, SKA-MID
  *
  */
-class DishGrid final : public GriddedResponse {
+class DishGrid : public GriddedResponse {
  public:
-  DishGrid(telescope::Telescope* telescope_ptr,
+  DishGrid(const telescope::Telescope* telescope_ptr,
            const coords::CoordinateSystem coordinate_system)
       : GriddedResponse(telescope_ptr, coordinate_system){};
 
-  void CalculateStation(std::complex<float>* buffer, double time,
-                        double frequency, size_t station_idx,
-                        size_t field_id) override;
+  void Response(BeamMode beam_mode, std::complex<float>* buffer, double time,
+                double frequency, size_t station_idx, size_t field_id) override;
 
-  void CalculateAllStations(std::complex<float>* buffer, double time,
-                            double frequency, size_t field_id) override;
+  void ResponseAllStations(BeamMode beam_mode, std::complex<float>* buffer,
+                           double time, double frequency,
+                           size_t field_id) final override;
 
-  virtual void CalculateIntegratedResponse(
-      double* buffer, double time, double frequency, size_t field_id,
-      size_t undersampling_factor,
-      const std::vector<double>& baseline_weights) override;
-
-  virtual void CalculateIntegratedResponse(
-      double* buffer, const std::vector<double>& time_array, double frequency,
+  void IntegratedResponse(
+      BeamMode beam_mode, float* buffer, double time, double frequency,
       size_t field_id, size_t undersampling_factor,
-      const std::vector<double>& baseline_weights) override {
+      const std::vector<double>& baseline_weights) final override;
+
+  void IntegratedResponse(
+      BeamMode beam_mode, float* buffer,
+      const std::vector<double>& /* time_array */, double frequency,
+      size_t field_id, size_t undersampling_factor,
+      const std::vector<double>& /* baseline_weights */) final override {
     // Time does not play a role in the integrated response of a dish telescope,
-    // so call CalculateIntegratedResponse as if it were one time step
-    CalculateIntegratedResponse(buffer, 0., frequency, field_id,
-                                undersampling_factor, std::vector<double>{0});
-  };
+    // so call IntegratedResponse as if it were one time step
+    IntegratedResponse(beam_mode, buffer, 0.0, frequency, field_id,
+                       undersampling_factor, {0.0});
+  }
+
+  bool PerformUndersampling() const final override { return false; }
 
  private:
   /**

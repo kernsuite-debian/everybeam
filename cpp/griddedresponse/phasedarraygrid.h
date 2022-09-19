@@ -8,51 +8,35 @@
 #define EVERYBEAM_GRIDDEDRESPONSE_PHASEDARRAYGRID_H_
 
 #include "griddedresponse.h"
+#include "../beamnormalisationmode.h"
+#include "../phasedarrayresponse.h"
+
+namespace aocommon {
+template <typename Tp>
+class Lane;
+}
 
 namespace everybeam {
 namespace griddedresponse {
-class PhasedArrayGrid : public GriddedResponse {
+class PhasedArrayGrid : public GriddedResponse, protected PhasedArrayResponse {
  public:
-  PhasedArrayGrid(telescope::Telescope* telescope_ptr,
+  PhasedArrayGrid(const telescope::Telescope* telescope_ptr,
                   const coords::CoordinateSystem& coordinate_system);
 
-  /**
-   * @brief Compute the Beam response for a single station
-   *
-   * @param buffer Output buffer, compute and set size with
-   * GriddedResponse::GetBufferSize(1)
-   * @param station_idx Station index, must be smaller than number of stations
-   * in the Telescope
-   * @param time Time, modified Julian date, UTC, in seconds (MJD(UTC), s).
-   * @param freq Frequency (Hz)
-   */
-  void CalculateStation(std::complex<float>* buffer, double time,
-                        double frequency, size_t station_idx,
-                        size_t field_id) override;
+  void Response(BeamMode beam_mode, std::complex<float>* buffer, double time,
+                double frequency, size_t station_idx,
+                size_t field_id) final override;
 
-  /**
-   * @brief Compute the Beam response for all stations in a Telescope
-   *
-   * @param buffer Output buffer, compute and set size with
-   * GriddedResponse::GetStationBufferSize()
-   * @param time Time, modified Julian date, UTC, in seconds (MJD(UTC), s).
-   * @param freq Frequency (Hz)
-   */
-  void CalculateAllStations(std::complex<float>* buffer, double time,
-                            double frequency, size_t field_id) override;
-
- protected:
-  casacore::MDirection delay_dir_, tile_beam_dir_, preapplied_beam_dir_;
-  vector3r_t station0_, tile0_, l_vector_itrf_, m_vector_itrf_, n_vector_itrf_,
-      diff_beam_centre_;
-
-  bool use_differential_beam_, use_channel_frequency_;
-  double subband_frequency_;
+  void ResponseAllStations(BeamMode beam_mode, std::complex<float>* buffer,
+                           double time, double frequency,
+                           size_t field_id) override;
 
  private:
+  vector3r_t l_vector_itrf_;
+  vector3r_t m_vector_itrf_;
+  vector3r_t n_vector_itrf_;
   std::vector<aocommon::MC2x2F> inverse_central_gain_;
 
-  std::size_t nthreads_;
   std::vector<std::thread> threads_;
 
   struct Job {
@@ -71,7 +55,8 @@ class PhasedArrayGrid : public GriddedResponse {
    */
   void SetITRFVectors(double time);
 
-  void CalcThread(std::complex<float>* buffer, double time, double frequency);
+  void CalcThread(BeamMode beam_mode, bool apply_normalisation,
+                  std::complex<float>* buffer, double time, double frequency);
 };
 }  // namespace griddedresponse
 }  // namespace everybeam

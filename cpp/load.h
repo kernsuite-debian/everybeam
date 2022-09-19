@@ -1,4 +1,4 @@
-// load_telescope.h: Main interface function for loading a telescope
+// load.h: Main interface for loading a telescope
 //
 // Copyright (C) 2020 ASTRON (Netherlands Institute for Radio Astronomy)
 // SPDX-License-Identifier: GPL-3.0-or-later
@@ -6,8 +6,9 @@
 #ifndef EVERYBEAM_LOAD_H_
 #define EVERYBEAM_LOAD_H_
 
-#include "./telescope/telescope.h"
+#include "telescope/telescope.h"
 #include "options.h"
+#include "elementresponse.h"
 
 namespace everybeam {
 /**
@@ -16,12 +17,14 @@ namespace everybeam {
  */
 enum TelescopeType {
   kUnknownTelescope,
-  kLofarTelescope,
   kAARTFAAC,
-  kVLATelescope,
   kATCATelescope,
+  kGMRTTelescope,
+  kLofarTelescope,
+  kOSKARTelescope,
   kMWATelescope,
-  kOSKARTelescope
+  kSkaMidTelescope,
+  kVLATelescope,
 };
 
 /**
@@ -30,7 +33,7 @@ enum TelescopeType {
  * @param ms
  * @return TelescopeType
  */
-TelescopeType GetTelescopeType(const casacore::MeasurementSet &ms);
+TelescopeType GetTelescopeType(const casacore::MeasurementSet& ms);
 
 /**
  * @brief Load telescope given a measurement set. Telescope is determined
@@ -38,10 +41,10 @@ TelescopeType GetTelescopeType(const casacore::MeasurementSet &ms);
  *
  * @param ms MeasurementSet
  * @param options Options
- * @return telescope::Telescope::Ptr
+ * @return std::unique_ptr<Telescope> Unique pointer to Telescope object
  */
-std::unique_ptr<telescope::Telescope> Load(const casacore::MeasurementSet &ms,
-                                           const Options &options);
+std::unique_ptr<telescope::Telescope> Load(const casacore::MeasurementSet& ms,
+                                           const Options& options);
 
 /**
  * @brief Load telescope given a path to a measurment set. Telescope is
@@ -49,10 +52,18 @@ std::unique_ptr<telescope::Telescope> Load(const casacore::MeasurementSet &ms,
  *
  * @param ms MeasurementSet
  * @param options Options
- * @return telescope::Telescope::Ptr
+ * @return td::unique_ptr<Telescope> Unique pointer to Telescope object
  */
-std::unique_ptr<telescope::Telescope> Load(const std::string &ms_name,
-                                           const Options &options);
+std::unique_ptr<telescope::Telescope> Load(const std::string& ms_name,
+                                           const Options& options);
+
+/**
+ * @brief Convert a string to an ElementResponseModel enum
+ *
+ */
+everybeam::ElementResponseModel GetElementResponseEnum(
+    const std::string& element_response);
+
 }  // namespace everybeam
 
 #endif  // EVERYBEAM_LOAD_H_

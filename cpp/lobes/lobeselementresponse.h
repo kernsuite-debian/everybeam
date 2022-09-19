@@ -7,7 +7,10 @@
 #include <Eigen/Core>
 #include <unsupported/Eigen/CXX11/Tensor>
 
+#include "../options.h"
 #include "../fieldresponse.h"
+
+#include <boost/optional.hpp>
 
 #include <vector>
 #include <memory>
@@ -22,8 +25,14 @@ class LOBESElementResponse : public FieldResponse {
    * @brief Construct a new LOBESElementResponse object
    *
    * @param name (LOFAR) station name, i.e. CS302LBA
+   * @param options if options.coeff_path is non-empty it is used to find
+   * coefficient files
    */
-  LOBESElementResponse(std::string name);
+  LOBESElementResponse(const std::string& name, const Options& options);
+
+  ElementResponseModel GetModel() const final override {
+    return ElementResponseModel::kLOBES;
+  }
 
   /**
    * @brief Stub override of the Response method, an element id
@@ -34,9 +43,9 @@ class LOBESElementResponse : public FieldResponse {
    * @param phi
    * @param response
    */
-  virtual void Response(
-      double freq, double theta, double phi,
-      std::complex<double> (&response)[2][2]) const final override {
+  aocommon::MC2x2 Response([[maybe_unused]] double freq,
+                           [[maybe_unused]] double theta,
+                           [[maybe_unused]] double phi) const final override {
     throw std::invalid_argument(
         "LOBESElementResponse::response needs an element_id");
   };
@@ -52,10 +61,17 @@ class LOBESElementResponse : public FieldResponse {
    * just a stub to match override)
    * @param result Pointer to 2x2 array of Jones matrix
    */
-  void Response(int element_id, double freq, double theta, double phi,
-                std::complex<double> (&response)[2][2]) const override;
+  aocommon::MC2x2 Response(int element_id, double freq, double theta,
+                           double phi) const final override;
 
-  static std::shared_ptr<LOBESElementResponse> GetInstance(std::string name);
+  /**
+   * @brief Create LOBESElementResponse
+   *
+   * @param name Station name, e.g. CS302LBA
+   * @return std::shared_ptr<LOBESElementResponse>
+   */
+  static std::shared_ptr<LOBESElementResponse> GetInstance(
+      const std::string& name, const Options& options);
 
   /**
    * @brief Set field quantities (i.e. the basefunctions) for the LOBES element
@@ -65,6 +81,9 @@ class LOBESElementResponse : public FieldResponse {
    *
    * @param theta Angle wrt. z-axis (rad)
    * @param phi Angle in the xy-plane wrt. x-axis  (rad)
+   *
+   * @warning When calling this function or @ref ClearFieldQuantities from
+   * multiple threads the callers need to ensure the synchronisation.
    */
   virtual void SetFieldQuantities(double theta, double phi) final override {
     basefunctions_ = ComputeBaseFunctions(theta, phi);
@@ -73,19 +92,19 @@ class LOBESElementResponse : public FieldResponse {
   /**
    * @brief Clear the cached basefunctions
    *
+   * @warning When calling this function or @ref SetFieldQuantities from
+   * multiple threads the callers need to ensure the synchronisation.
    */
   virtual void ClearFieldQuantities() final override {
-    // Destructively resize the basefunctions_ to 0 rows
-    basefunctions_.resize(0, 2);
+    basefunctions_.reset();
   };
 
  private:
   // Typdef of BaseFunctions as Eigen::Array type
   typedef Eigen::Array<std::complex<double>, Eigen::Dynamic, 2> BaseFunctions;
-  mutable BaseFunctions basefunctions_;
 
-  // Compose the path to a LOBES coefficient file
-  std::string GetPath(const char *) const;
+  /** The cached version of the base functions. */
+  mutable boost::optional<BaseFunctions> basefunctions_;
 
   // Find the closest frequency
   size_t FindFrequencyIdx(double f) const {
@@ -100,7 +119,6 @@ class LOBESElementResponse : public FieldResponse {
 
   // Store h5 coefficients in coefficients_
   Eigen::Tensor<std::complex<double>, 4, Eigen::RowMajor> coefficients_;
-  std::vector<unsigned int> coefficients_shape_;
 
   // Store h5 frequencies in frequencies_
   std::vector<double> frequencies_;

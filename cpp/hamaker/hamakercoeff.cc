@@ -3,6 +3,7 @@
 
 #include "hamakercoeff.h"
 
+namespace everybeam {
 H5::CompType GetComplexDoubleType() {
   H5::CompType complex_type(sizeof(std::complex<double>));
   complex_type.insertMember("r", 0, H5::PredType::NATIVE_DOUBLE);
@@ -10,10 +11,9 @@ H5::CompType GetComplexDoubleType() {
   return complex_type;
 }
 
-size_t HamakerCoefficients::GetIndex(const unsigned int n, const unsigned int t,
-                                     const unsigned int f) {
-  return n * nPowerTheta_ * nPowerFreq_ * nInner_ + t * nPowerFreq_ * nInner_ +
-         f * nInner_;
+size_t HamakerCoefficients::GetIndex(unsigned int n, unsigned int t,
+                                     unsigned int f) {
+  return (n * nPowerTheta_ + t) * nPowerFreq_ * nInner_ + f * nInner_;
 }
 
 // Constructor for reading coeff from file
@@ -39,7 +39,7 @@ size_t HamakerCoefficients::GetNrCoefficients() const {
 }
 
 void HamakerCoefficients::SetCoefficients(
-    const unsigned int n, const unsigned int t, const unsigned int f,
+    unsigned int n, unsigned int t, unsigned int f,
     std::pair<std::complex<double>, std::complex<double>> value) {
   size_t index = GetIndex(n, t, f);
   coeff_[index] = value.first;
@@ -56,14 +56,12 @@ void HamakerCoefficients::SetCoefficients(
   std::copy(coeff.begin(), coeff.end(), coeff_.begin());
 }
 
-std::pair<std::complex<double>, std::complex<double>>
-HamakerCoefficients::GetCoefficient(const unsigned int n, const unsigned int t,
-                                    const unsigned int f) {
+void HamakerCoefficients::GetCoefficient(
+    unsigned int n, unsigned int t, unsigned int f,
+    std::pair<std::complex<double>, std::complex<double>>& value) {
   size_t index = GetIndex(n, t, f);
-  std::pair<std::complex<double>, std::complex<double>> value;
   value.first = coeff_[index];
   value.second = coeff_[index + 1];
-  return value;
 }
 
 void HamakerCoefficients::ReadCoefficients(std::string& filename) {
@@ -84,7 +82,7 @@ void HamakerCoefficients::ReadCoefficients(std::string& filename) {
   unsigned int rank = dataspace.getSimpleExtentNdims();
   assert(rank == dataset_rank_);
   std::vector<hsize_t> dims(rank);
-  dataspace.getSimpleExtentDims(dims.data(), NULL);
+  dataspace.getSimpleExtentDims(dims.data(), nullptr);
   nHarmonics_ = dims[0];
   nPowerTheta_ = dims[1];
   nPowerFreq_ = dims[2];
@@ -105,15 +103,13 @@ void HamakerCoefficients::WriteCoefficients(std::string& filename) {
   hsize_t dims[rank] = {nHarmonics_, nPowerTheta_, nPowerFreq_, nInner_};
   H5::DataSpace coeff_dataspace(rank, dims);
 
-  std::complex<double>* coeff_ptr = (std::complex<double>*)coeff_.data();
-
   // Create complex type
   H5::CompType complex_type = GetComplexDoubleType();
 
   // Write dataset
   H5::DataSet dataset =
       file.createDataSet("coeff", complex_type, coeff_dataspace);
-  dataset.write(coeff_ptr, complex_type);
+  dataset.write(coeff_.data(), complex_type);
 
   // Create new dataspace for attribute
   H5::DataSpace attr_dataspace(H5S_SCALAR);
@@ -132,13 +128,15 @@ void HamakerCoefficients::WriteCoefficients(std::string& filename) {
 }
 
 void HamakerCoefficients::PrintCoefficients() {
+  std::pair<std::complex<double>, std::complex<double>> coeff;
   for (unsigned int h = 0; h < nHarmonics_; h++) {
     for (unsigned int t = 0; t < nPowerTheta_; t++) {
       for (unsigned int f = 0; f < nPowerFreq_; f++) {
-        auto coeff = GetCoefficient(h, t, f);
+        GetCoefficient(h, t, f, coeff);
         std::cout << coeff.first << ", " << coeff.second << std::endl;
       }
     }
   }
   std::cout << std::endl;
 }
+}  // namespace everybeam

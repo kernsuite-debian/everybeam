@@ -14,22 +14,24 @@ using everybeam::circularsymmetric::VoltagePattern;
 void VoltagePattern::EvaluatePolynomial(const UVector<double>& coefficients,
                                         bool invert) {
   // This comes from casa's: void PBMath1DIPoly::fillPBArray(), wideband case
-  size_t nsamples = 10000;
-  size_t nfreq = frequencies_.size();
-  size_t ncoef = coefficients.size() / nfreq;
+  const size_t nsamples = 10000;
+  const size_t nfreq = frequencies_.size();
+  const size_t ncoef = coefficients.size() / nfreq;
   values_.resize(nsamples * nfreq);
   inverse_increment_radius_ = double(nsamples - 1) / maximum_radius_arc_min_;
   double* output = values_.data();
+  const double referenced_increment =
+      std::sqrt(reference_frequency_ / 1e9) / inverse_increment_radius_;
   for (size_t n = 0; n != nfreq; n++) {
-    const double* freqcoefficients = &coefficients[n * ncoef];
+    const double* freq_coefficients = &coefficients[n * ncoef];
     for (size_t i = 0; i < nsamples; i++) {
       double taper = 0.0;
-      double x2 = double(i) / inverse_increment_radius_;
+      double x2 = double(i) * referenced_increment;
       x2 = x2 * x2;
       double y = 1.0;
 
       for (size_t j = 0; j < ncoef; j++) {
-        taper += y * freqcoefficients[j];
+        taper += y * freq_coefficients[j];
         y *= x2;
       }
       if (taper >= 0.0) {
@@ -45,7 +47,7 @@ void VoltagePattern::EvaluatePolynomial(const UVector<double>& coefficients,
       ++output;
     }
   }
-};
+}
 
 UVector<double> VoltagePattern::InterpolateValues(double freq) const {
   UVector<double> result;
@@ -83,9 +85,9 @@ const double* VoltagePattern::InterpolateValues(
 }
 
 double VoltagePattern::LmMaxSquared(double frequency_hz) const {
-  double factor =
-      (180.0 / M_PI) * 60.0 * frequency_hz * 1.0e-9;  // arcminutes * GHz
-  double rmax = maximum_radius_arc_min_ / factor;
+  const double factor =
+      (180.0 / M_PI) * 60.0 * frequency_hz * 1e-9;  // arcminutes * GHz
+  const double rmax = maximum_radius_arc_min_ / factor;
   return rmax * rmax;
 }
 
@@ -95,13 +97,13 @@ void VoltagePattern::Render(std::complex<float>* aterm, size_t width,
                             double phase_centre_dec, double pointing_ra,
                             double pointing_dec, double phase_centre_dl,
                             double phase_centre_dm, double frequency_hz) const {
-  double lmMaxSq = LmMaxSquared(frequency_hz);
+  const double lm_max_sq = LmMaxSquared(frequency_hz);
 
   UVector<double> interpolated_values;
   const double* vp = InterpolateValues(frequency_hz, interpolated_values);
 
-  double factor =
-      (180.0 / M_PI) * 60.0 * frequency_hz * 1.0e-9;  // arcminutes * GHz
+  const double factor =
+      (180.0 / M_PI) * 60.0 * frequency_hz * 1e-9;  // arcminutes * GHz
   double l0, m0;
   ImageCoordinates::RaDecToLM(pointing_ra, pointing_dec, phase_centre_ra,
                               phase_centre_dec, l0, m0);
@@ -113,7 +115,7 @@ void VoltagePattern::Render(std::complex<float>* aterm, size_t width,
       double l, m, ra, dec;
       ImageCoordinates::XYToLM(ix, iy, pixel_scale_x, pixel_scale_y, width,
                                height, l, m);
-      l += phase_centre_dl;
+      l += l0;
       m += m0;
       ImageCoordinates::LMToRaDec(l, m, phase_centre_ra, phase_centre_dec, ra,
                                   dec);
@@ -122,7 +124,7 @@ void VoltagePattern::Render(std::complex<float>* aterm, size_t width,
       m -= m0;
       double r2 = l * l + m * m;
       double out;
-      if (r2 > lmMaxSq) {
+      if (r2 > lm_max_sq) {
         out = 1e-4;
       } else {
         double r = std::sqrt(r2) * factor;
@@ -137,4 +139,42 @@ void VoltagePattern::Render(std::complex<float>* aterm, size_t width,
       ptr[3] = out;
     }
   }
+}
+
+void VoltagePattern::Render(std::complex<float>* aterm, double phase_centre_ra,
+                            double phase_centre_dec, double pointing_ra,
+                            double pointing_dec, double frequency_hz) const {
+  const double lm_max_sq = LmMaxSquared(frequency_hz);
+
+  UVector<double> interpolated_values;
+  const double* vp = InterpolateValues(frequency_hz, interpolated_values);
+
+  const double factor =
+      (180.0 / M_PI) * 60.0 * frequency_hz * 1e-9;  // arcminutes * GHz
+
+  // TODO: probably not all conversions needed?
+  double l0, m0;
+  ImageCoordinates::RaDecToLM(pointing_ra, pointing_dec, phase_centre_ra,
+                              phase_centre_dec, l0, m0);
+  double l = l0;
+  double m = m0;
+  double ra, dec;
+  ImageCoordinates::LMToRaDec(l, m, phase_centre_ra, phase_centre_dec, ra, dec);
+  ImageCoordinates::RaDecToLM(ra, dec, pointing_ra, pointing_dec, l, m);
+  l -= l0;
+  m -= m0;
+  const double r2 = l * l + m * m;
+  double out;
+  if (r2 > lm_max_sq) {
+    out = 1e-4;
+  } else {
+    const double r = std::sqrt(r2) * factor;
+    const int indx = int(r * inverse_increment_radius_);
+    out = vp[indx] * (1.0 - 1e-4) + 1e-4;
+  }
+
+  aterm[0] = out;
+  aterm[1] = 0.0;
+  aterm[2] = 0.0;
+  aterm[3] = out;
 }

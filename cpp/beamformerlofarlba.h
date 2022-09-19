@@ -25,7 +25,7 @@ class BeamFormerLofarLBA : public BeamFormerLofar {
    *
    * @param coordinate_system
    */
-  BeamFormerLofarLBA(const CoordinateSystem &coordinate_system)
+  BeamFormerLofarLBA(const CoordinateSystem& coordinate_system)
       : BeamFormerLofar(coordinate_system) {}
 
   /**
@@ -47,9 +47,9 @@ class BeamFormerLofarLBA : public BeamFormerLofar {
    * only the element_ is copied. This method is intended to be exclusively
    * used in Station::SetAntenna!
    *
-   * @return Antenna::Ptr
+   * @return std::shared_ptr<Antenna>
    */
-  Antenna::Ptr Clone() const final override;
+  std::shared_ptr<Antenna> Clone() const final override;
 
   /**
    * @brief Mark whether the element is enabled by pushing back boolean array to
@@ -63,9 +63,9 @@ class BeamFormerLofarLBA : public BeamFormerLofar {
 
  private:
   // Local Array factor override
-  virtual diag22c_t LocalArrayFactor(
-      real_t time, real_t freq, const vector3r_t &direction,
-      const Options &options) const final override;
+  aocommon::MC2x2Diag LocalArrayFactor(
+      real_t time, real_t freq, const vector3r_t& direction,
+      const Options& options) const final override;
 
   // Is element enabled?
   std::vector<std::array<bool, 2>> element_enabled_;

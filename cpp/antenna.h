@@ -8,6 +8,9 @@
 #include <memory>
 #include <iostream>
 
+#include <aocommon/matrix2x2.h>
+#include <aocommon/matrix2x2diag.h>
+
 #include "common/types.h"
 
 namespace everybeam {
@@ -63,8 +66,6 @@ class Antenna {
   constexpr static CoordinateSystem IdentityCoordinateSystem{
       CoordinateSystem::zero_origin, CoordinateSystem::identity_axes};
 
-  typedef std::shared_ptr<Antenna> Ptr;
-
   /**
    * @brief Struct containing antenna options
    *
@@ -94,7 +95,7 @@ class Antenna {
    *
    * @param coordinate_system
    */
-  Antenna(const CoordinateSystem &coordinate_system)
+  Antenna(const CoordinateSystem& coordinate_system)
       :  // default phase reference system is the origin of the coordinate
          // system
         Antenna(coordinate_system, coordinate_system.origin) {}
@@ -106,19 +107,17 @@ class Antenna {
    * phase reference position.
    *
    * @param coordinate_system Coordinate system
-   * @param phase_reference_position Phase reference position
+   * @param phase_reference_position Phase reference position (ITRF, m)
    */
-  Antenna(const CoordinateSystem &coordinate_system,
-          const vector3r_t &phase_reference_position)
-      : coordinate_system_(coordinate_system),
-        phase_reference_position_(phase_reference_position),
-        enabled_{true, true} {}
+  Antenna(const CoordinateSystem& coordinate_system,
+          const vector3r_t& phase_reference_position);
 
-  Antenna(const vector3r_t &phase_reference_position)
-      : coordinate_system_({phase_reference_position,  // origin
-                            CoordinateSystem::identity_axes}),
-        phase_reference_position_(phase_reference_position),
-        enabled_{true, true} {}
+  /**
+   * @brief Construct a new Antenna object
+   *
+   * @param phase_reference_position Phase reference position (ITRF, m)
+   */
+  Antenna(const vector3r_t& phase_reference_position);
 
   /**
    * @brief Makes a copy of this Antenna object
@@ -132,7 +131,7 @@ class Antenna {
    * This method is used by the ExtractAntenna method of the BeamFormer
    * class to create a copy of one of the Antennas it contains.
    */
-  virtual Ptr Clone() const = 0;
+  virtual std::shared_ptr<Antenna> Clone() const = 0;
 
   /**
    * @brief Transform internal coordinate systems and positions
@@ -149,7 +148,7 @@ class Antenna {
    * the coordinate system of the beamformer needs to be
    * applied to the coordinate system of the antenna
    */
-  void Transform(const CoordinateSystem &coordinate_system);
+  void Transform(const CoordinateSystem& coordinate_system);
 
   /**
    * @brief Compute the %Antenna Response
@@ -158,11 +157,10 @@ class Antenna {
    * @param freq Frequency of the plane wave (Hz).
    * @param direction Direction of arrival (ITRF, m).
    * @param options
-   * @return matrix22c_t Jones matrix
    */
-  virtual matrix22c_t Response(real_t time, real_t freq,
-                               const vector3r_t &direction,
-                               const Options &options = {}) {
+  virtual aocommon::MC2x2 Response(real_t time, real_t freq,
+                                   const vector3r_t& direction,
+                                   const Options& options = {}) const {
     // Transform direction and directions in options to local coordinatesystem
     vector3r_t local_direction = TransformToLocalDirection(direction);
     Options local_options;
@@ -172,9 +170,7 @@ class Antenna {
     local_options.rotate = options.rotate;
     local_options.east = TransformToLocalDirection(options.east);
     local_options.north = TransformToLocalDirection(options.north);
-    matrix22c_t response =
-        LocalResponse(time, freq, local_direction, local_options);
-    return response;
+    return LocalResponse(time, freq, local_direction, local_options);
   }
 
   /**
@@ -184,12 +180,12 @@ class Antenna {
    * @param freq Frequency of the plane wave (Hz).
    * @param direction Direction of arrival (ITRF, m).
    * @param options
-   * @return diag22c_t
    */
-  diag22c_t ArrayFactor(real_t time, real_t freq, const vector3r_t &direction,
-                        const Options &options = {}) {
+  virtual aocommon::MC2x2Diag ArrayFactor(real_t time, real_t freq,
+                                          const vector3r_t& direction,
+                                          const Options& options) const {
     // Transform direction and directions in options to local coordinatesystem
-    vector3r_t local_direction = TransformToLocalDirection(direction);
+    const vector3r_t local_direction = TransformToLocalDirection(direction);
     Options local_options;
     local_options.freq0 = options.freq0;
     local_options.station0 = TransformToLocalDirection(options.station0);
@@ -202,17 +198,18 @@ class Antenna {
   bool enabled_[2];
 
  protected:
-  vector3r_t TransformToLocalDirection(const vector3r_t &direction) const;
+  vector3r_t TransformToLocalDirection(const vector3r_t& direction) const;
 
  private:
-  virtual matrix22c_t LocalResponse(real_t time, real_t freq,
-                                    const vector3r_t &direction,
-                                    const Options &options) const = 0;
+  virtual aocommon::MC2x2 LocalResponse(real_t time, real_t freq,
+                                        const vector3r_t& direction,
+                                        const Options& options) const = 0;
 
-  virtual diag22c_t LocalArrayFactor(real_t time, real_t freq,
-                                     const vector3r_t &direction,
-                                     const Options &options) const {
-    return {1.0, 1.0};
+  virtual aocommon::MC2x2Diag LocalArrayFactor(
+      [[maybe_unused]] real_t time, [[maybe_unused]] real_t freq,
+      [[maybe_unused]] const vector3r_t& direction,
+      [[maybe_unused]] const Options& options) const {
+    return aocommon::MC2x2Diag::Unity();
   }
 };
 

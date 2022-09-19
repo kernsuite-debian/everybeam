@@ -1,0 +1,20 @@
+*.DS_Store
+*.pyc
+
+# Eclipse project files
+/.project
+/.pydevproject
+/.cproject
+/.settings/
+
+# PyCharm project files
+/.idea/
+
+# Build directories
+/release/
+/debug/
+/build/
+
+# Auto-generated settings documentation
+/docs/settings/settings.rst
+/docs/settings/settings-*.rst

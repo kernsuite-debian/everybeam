@@ -1,14 +1,15 @@
 // Copyright (C) 2020 ASTRON (Netherlands Institute for Radio Astronomy)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#ifndef OSKAR_DATASET_H
-#define OSKAR_DATASET_H
+#ifndef EVERYBEAM_OSKAR_DATASET_H_
+#define EVERYBEAM_OSKAR_DATASET_H_
 
 #include <complex>
 #include <vector>
 
 #include <H5Cpp.h>
 
+namespace everybeam {
 //! OSKAR dataset
 class Dataset {
  public:
@@ -31,14 +32,11 @@ class Dataset {
   // Methods
   size_t GetIndex(const unsigned int element) const;
 
-  // Constants
-  // const unsigned int dataset_rank_ = 3;
-
   // Members
   std::vector<std::complex<double>> data_;
-  unsigned int nr_elements_;
-  unsigned int nr_coeffs_;
-  unsigned int l_max_;
+  size_t nr_elements_;
+  size_t nr_coeffs_;
+  size_t l_max_;
 };
-
+}  // namespace everybeam
 #endif

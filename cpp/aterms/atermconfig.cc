@@ -8,37 +8,39 @@
 #include "everybeamaterm.h"
 #include "fitsaterm.h"
 #include "pafbeamterm.h"
+#include "h5parmaterm.h"
 
 #include "../load.h"
 #include "../options.h"
-#include "../elementresponse.h"
+#include "../beammode.h"
 #include "parsetprovider.h"
 
 #include <aocommon/matrix2x2.h>
 #include <aocommon/radeccoord.h>
 
+#include <casacore/ms/MeasurementSets/MSAntennaColumns.h>
+#include <casacore/tables/Tables/TableKeyword.h>
+#include <casacore/tables/Tables/TableRecord.h>
+#include <casacore/tables/Tables/ScalarColumn.h>
+
 #include <algorithm>
 
 using everybeam::ATermSettings;
-using everybeam::aterms::ATermBeam;
-using everybeam::aterms::ATermConfig;
-using everybeam::aterms::DLDMATerm;
-using everybeam::aterms::EveryBeamATerm;
-using everybeam::aterms::FitsATerm;
-using everybeam::aterms::PAFBeamTerm;
-using everybeam::aterms::ParsetProvider;
 using everybeam::coords::CoordinateSystem;
 
+namespace everybeam {
+namespace aterms {
 void ATermConfig::Read(const casacore::MeasurementSet& ms,
                        const ParsetProvider& reader,
                        const std::string& ms_filename) {
   std::vector<std::string> aterms = reader.GetStringList("aterms");
 
-  if (aterms.empty())
+  if (aterms.empty()) {
     throw std::runtime_error(
         "No a-term correction given in parset (aterms key is an empty list)");
+  }
 
-  for (const std::string aterm_name : aterms) {
+  for (const std::string& aterm_name : aterms) {
     // Allows to "alias" the aterm type.
     std::string aterm_type =
         reader.GetStringOr(aterm_name + ".type", aterm_name);
@@ -100,17 +102,30 @@ void ATermConfig::Read(const casacore::MeasurementSet& ms,
       f->SetDownSample(reader.GetBoolOr(aterm_name + ".downsample", true));
       aterms_.emplace_back(std::move(f));
     } else if (aterm_type == "beam") {
-      bool frequency_interpolation =
+      const bool frequency_interpolation =
           reader.GetBoolOr(aterm_name + ".frequency_interpolation", true);
-      bool differential = reader.GetBoolOr(aterm_name + ".differential", false);
-      bool use_channel_frequency =
+      std::string beam_normalisation_mode =
+          reader.GetStringOr(aterm_name + ".beam_normalisation_mode", "");
+      if (beam_normalisation_mode.empty()) {
+        const bool differential =
+            reader.GetBoolOr(aterm_name + ".differential", false);
+        if (differential) {
+          beam_normalisation_mode = "full";
+        } else {
+          beam_normalisation_mode = "preapplied";
+        }
+      }
+      const bool use_channel_frequency =
           reader.GetBoolOr(aterm_name + ".usechannelfreq", true);
-      std::string element_response_model =
+      const std::string element_response_model =
           reader.GetStringOr(aterm_name + ".element_response_model", "default");
+      const std::string beam_mode =
+          reader.GetStringOr(aterm_name + ".beam_mode", "full");
 
       std::unique_ptr<ATermBeam> beam = GetATermBeam(
           ms, coordinate_system_, settings_, frequency_interpolation,
-          differential, use_channel_frequency, element_response_model);
+          beam_normalisation_mode, use_channel_frequency,
+          element_response_model, beam_mode);
       double update_interval = reader.GetDoubleOr(
           aterm_name + ".update_interval", settings_.aterm_update_interval);
       beam->SetUpdateInterval(update_interval);
@@ -174,6 +189,35 @@ void ATermConfig::Read(const casacore::MeasurementSet& ms,
       f->SetReferenceFrequency(
           reader.GetDoubleOr(aterm_name + ".reference_frequency", 0.0));
       aterms_.emplace_back(std::move(f));
+    } else if (aterm_type == "h5parm") {
+      std::vector<std::string> h5parm_files =
+          reader.GetStringList(aterm_name + ".files");
+
+      // Extract antenna names from MS
+      std::vector<std::string> station_names(n_antennas_);
+      casacore::ScalarColumn<casacore::String> stations(
+          ms.antenna(),
+          ms.antenna().columnName(casacore::MSAntennaEnums::NAME));
+
+      if (stations.nrow() != n_antennas_) {
+        throw std::runtime_error(
+            "Number of stations read from measurement set (" +
+            std::to_string(stations.nrow()) +
+            ") should match the number of stations set in the constructor "
+            "command line (" +
+            std::to_string(n_antennas_) + ")");
+      }
+
+      for (size_t i = 0; i < n_antennas_; ++i) {
+        station_names[i] = stations(i);
+      }
+
+      std::unique_ptr<H5ParmATerm> f(
+          new H5ParmATerm(station_names, coordinate_system_));
+      f->Open(h5parm_files);
+      f->SetUpdateInterval(reader.GetDoubleOr(aterm_name + ".update_interval",
+                                              settings_.aterm_update_interval));
+      aterms_.emplace_back(std::move(f));
     } else {
       throw std::runtime_error("The specified aterm type " + aterm_type +
                                " is not recognized");
@@ -188,9 +232,10 @@ void ATermConfig::Read(const casacore::MeasurementSet& ms,
   }
   if (aterms_.size() > 1) {
     previous_aterm_values_.resize(aterms_.size());
-    for (aocommon::UVector<std::complex<float>>& buf : previous_aterm_values_)
+    for (aocommon::UVector<std::complex<float>>& buf : previous_aterm_values_) {
       buf.resize(coordinate_system_.width * coordinate_system_.height *
                  n_antennas_ * 4);
+    }
   }
 }
 
@@ -234,20 +279,21 @@ bool ATermConfig::Calculate(std::complex<float>* buffer, double time,
 std::unique_ptr<ATermBeam> ATermConfig::GetATermBeam(
     const casacore::MeasurementSet& ms,
     const CoordinateSystem& coordinate_system, const ATermSettings& settings,
-    bool frequency_interpolation, bool use_differential_beam,
-    bool use_channel_frequency, const std::string& element_response_model) {
-  std::unique_ptr<ATermBeam> beam;
+    bool frequency_interpolation, const std::string& beam_normalisation_mode,
+    bool use_channel_frequency, const std::string& element_response_model,
+    const std::string& beam_mode) {
   everybeam::Options options = ConvertToEBOptions(
-      ms, settings, frequency_interpolation, use_differential_beam,
-      use_channel_frequency, element_response_model);
-  beam.reset(new EveryBeamATerm(ms, coordinate_system, options));
-  return std::move(beam);
+      ms, settings, frequency_interpolation, beam_normalisation_mode,
+      use_channel_frequency, element_response_model, beam_mode);
+  return std::unique_ptr<ATermBeam>(
+      new EveryBeamATerm(ms, coordinate_system, options));
 }
 
 everybeam::Options ATermConfig::ConvertToEBOptions(
     const casacore::MeasurementSet& ms, const ATermSettings& settings,
-    bool frequency_interpolation, bool use_differential_beam,
-    bool use_channel_frequency, const std::string& element_response_model) {
+    bool frequency_interpolation, const std::string& beam_normalisation_mode,
+    bool use_channel_frequency, const std::string& element_response_model,
+    const std::string& beam_mode) {
   everybeam::Options options;
   // MWA related
   if (everybeam::GetTelescopeType(ms) ==
@@ -256,32 +302,20 @@ everybeam::Options ATermConfig::ConvertToEBOptions(
     options.coeff_path = settings.coeff_path;
     options.frequency_interpolation = frequency_interpolation;
   }
-  // LOFAR & SKA(/OSKAR) related
-  std::string element_response_upper = element_response_model;
-  std::transform(element_response_upper.begin(), element_response_upper.end(),
-                 element_response_upper.begin(), ::toupper);
 
-  everybeam::ElementResponseModel element_response_enum;
-  if (element_response_upper == "" || element_response_upper == "DEFAULT")
-    element_response_enum = everybeam::ElementResponseModel::kDefault;
-  else if (element_response_upper == "HAMAKER")
-    element_response_enum = everybeam::ElementResponseModel::kHamaker;
-  else if (element_response_upper == "LOBES")
-    element_response_enum = everybeam::ElementResponseModel::kLOBES;
-  else if (element_response_upper == "OSKARDIPOLE")
-    element_response_enum = everybeam::ElementResponseModel::kOSKARDipole;
-  else if (element_response_upper == "OSKARSPHERICALWAVE")
-    element_response_enum =
-        everybeam::ElementResponseModel::kOSKARSphericalWave;
-  else {
-    std::stringstream message;
-    message << "The specified element response model " << element_response_model
-            << " is not implemented.";
-    throw std::runtime_error(message.str());
-  }
+  everybeam::ElementResponseModel element_response_enum =
+      GetElementResponseEnum(element_response_model);
+
+  const everybeam::BeamMode beam_mode_enum = ParseBeamMode(beam_mode);
+  const everybeam::BeamNormalisationMode beam_normalisation_mode_enum =
+      ParseBeamNormalisationMode(beam_normalisation_mode);
+
   options.data_column_name = settings.data_column_name;
-  options.use_differential_beam = use_differential_beam;
   options.use_channel_frequency = use_channel_frequency;
   options.element_response_model = element_response_enum;
+  options.beam_mode = beam_mode_enum;
+  options.beam_normalisation_mode = beam_normalisation_mode_enum;
   return options;
 }
+}  // namespace aterms
+}  // namespace everybeam

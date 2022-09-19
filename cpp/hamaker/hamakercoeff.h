@@ -1,8 +1,8 @@
 // Copyright (C) 2020 ASTRON (Netherlands Institute for Radio Astronomy)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#ifndef HAMAKER_COEFF_H
-#define HAMAKER_COEFF_H
+#ifndef EVERYBEAM_HAMAKER_COEFF_H_
+#define EVERYBEAM_HAMAKER_COEFF_H_
 
 #include <iostream>
 #include <string>
@@ -13,6 +13,7 @@
 
 #include <H5Cpp.h>
 
+namespace everybeam {
 //! Hamaker coefficients
 class HamakerCoefficients {
  public:
@@ -37,7 +38,7 @@ class HamakerCoefficients {
    * @param value
    */
   void SetCoefficients(
-      const unsigned int n, const unsigned int t, const unsigned int f,
+      unsigned int n, unsigned int t, unsigned int f,
       std::pair<std::complex<double>, std::complex<double>> value);
 
   void SetCoefficients(const std::complex<double>* coeff);
@@ -57,8 +58,9 @@ class HamakerCoefficients {
 
   unsigned int Get_nPowerFreq() const { return nPowerFreq_; }
 
-  std::pair<std::complex<double>, std::complex<double>> GetCoefficient(
-      const unsigned int n, const unsigned int t, const unsigned int f);
+  void GetCoefficient(
+      unsigned int n, unsigned int t, unsigned int f,
+      std::pair<std::complex<double>, std::complex<double>>& value);
 
   // HDF5 I/O
   void ReadCoefficients(std::string& filename);
@@ -70,8 +72,7 @@ class HamakerCoefficients {
 
  private:
   // Methods
-  size_t GetIndex(const unsigned int n, const unsigned int t,
-                  const unsigned int f);
+  size_t GetIndex(unsigned int n, unsigned int t, unsigned int f);
 
   // Parameters
   double freq_center_;
@@ -88,5 +89,5 @@ class HamakerCoefficients {
   std::string dataset_name_ = "coeff";
   const unsigned int dataset_rank_ = 4;
 };
-
+}  // namespace everybeam
 #endif

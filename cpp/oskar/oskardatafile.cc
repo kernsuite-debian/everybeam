@@ -5,6 +5,8 @@
 
 #include <iostream>
 
+namespace everybeam {
+
 Datafile::Datafile(const std::string& filename) {
   // Open file
   std::cout << "read oskar datafile: " << filename << std::endl;
@@ -12,7 +14,7 @@ Datafile::Datafile(const std::string& filename) {
 
   // Disable HDF5 error prints
   H5::Exception::dontPrint();
-};
+}
 
 std::shared_ptr<Dataset> Datafile::Get(const unsigned int freq) {
   std::lock_guard<std::mutex> lock(mutex_);
@@ -31,3 +33,4 @@ std::shared_ptr<Dataset> Datafile::Get(const unsigned int freq) {
   map_.insert({freq, dataset_ptr});
   return dataset_ptr;
 }
+}  // namespace everybeam
