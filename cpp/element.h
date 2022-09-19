@@ -27,13 +27,13 @@ class Element : public Antenna {
    * @param element_response ElementResponseModel
    * @param id
    */
-  Element(const CoordinateSystem &coordinate_system,
+  Element(const CoordinateSystem& coordinate_system,
           ElementResponse::Ptr element_response, int id)
       : Antenna(coordinate_system),
         id_(id),
         element_response_(element_response) {}
 
-  Antenna::Ptr Clone() const override;
+  std::shared_ptr<Antenna> Clone() const override;
 
   /**
    * @brief Get the Element ID object
@@ -51,10 +51,11 @@ class Element : public Antenna {
    * @param direction Direction of arrival (ITRF, m).
    * @param id Element index.
    * @param options
-   * @return matrix22c_t Jones matrix
+   * @return aocommon::MC2x2 Jones matrix
    */
-  matrix22c_t ResponseID(real_t time, real_t freq, const vector3r_t &direction,
-                         size_t id, const Options &options = {}) {
+  aocommon::MC2x2 ResponseID(real_t time, real_t freq,
+                             const vector3r_t& direction, size_t id,
+                             const Options& options = {}) {
     // Transform direction and directions in options to local coordinatesystem
     vector3r_t local_direction = TransformToLocalDirection(direction);
     Options local_options;
@@ -75,16 +76,23 @@ class Element : public Antenna {
    * @param direction Direction of arrival (East-North-Up, m).
    * @param id ID of element
    * @param options
-   * @return matrix22c_t
+   * @return aocommon::MC2x2
    */
-  virtual matrix22c_t LocalResponse(real_t time, real_t freq,
-                                    const vector3r_t &direction, size_t id,
-                                    const Options &options) const;
+  virtual aocommon::MC2x2 LocalResponse(real_t time, real_t freq,
+                                        const vector3r_t& direction, size_t id,
+                                        const Options& options) const;
+
+  aocommon::MC2x2Diag ArrayFactor(
+      [[maybe_unused]] real_t time, [[maybe_unused]] real_t freq,
+      [[maybe_unused]] const vector3r_t& direction,
+      [[maybe_unused]] const Options& options) const final override {
+    return aocommon::MC2x2Diag::Unity();
+  };
 
  protected:
-  virtual matrix22c_t LocalResponse(real_t time, real_t freq,
-                                    const vector3r_t &direction,
-                                    const Options &options) const override {
+  aocommon::MC2x2 LocalResponse(real_t time, real_t freq,
+                                const vector3r_t& direction,
+                                const Options& options) const override {
     return LocalResponse(time, freq, direction, id_, options);
   };
 

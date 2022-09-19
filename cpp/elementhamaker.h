@@ -19,7 +19,7 @@ namespace everybeam {
  * the Element class.
  *
  */
-class ElementHamaker : public Element {
+class ElementHamaker final : public Element {
  public:
   /**
    * @brief Construct a new Element object
@@ -28,28 +28,27 @@ class ElementHamaker : public Element {
    * @param element_response ElementResponseModel
    * @param id
    */
-  ElementHamaker(const CoordinateSystem &coordinate_system,
+  ElementHamaker(const CoordinateSystem& coordinate_system,
                  ElementResponse::Ptr element_response, int id)
       : Element(coordinate_system, element_response, id) {}
 
-  Antenna::Ptr Clone() const override;
+  std::shared_ptr<Antenna> Clone() const override;
 
-  virtual matrix22c_t Response(real_t time, real_t freq,
-                               const vector3r_t &direction,
-                               const Options &options) override {
+  aocommon::MC2x2 Response(real_t time, real_t freq,
+                           const vector3r_t& direction,
+                           const Options& options) const override {
     // The only transform that is needed is hard-coded in LocalResponse
-    matrix22c_t response = LocalResponse(time, freq, direction, options);
-    return response;
+    return LocalResponse(time, freq, direction, options);
   }
 
-  virtual matrix22c_t LocalResponse(real_t time, real_t freq,
-                                    const vector3r_t &direction, size_t id,
-                                    const Options &options) const override;
+  aocommon::MC2x2 LocalResponse(real_t time, real_t freq,
+                                const vector3r_t& direction, size_t id,
+                                const Options& options) const override;
 
  private:
-  virtual matrix22c_t LocalResponse(
-      real_t time, real_t freq, const vector3r_t &direction,
-      const Options &options) const final override {
+  aocommon::MC2x2 LocalResponse(real_t time, real_t freq,
+                                const vector3r_t& direction,
+                                const Options& options) const override {
     return LocalResponse(time, freq, direction, id_, options);
   };
 };

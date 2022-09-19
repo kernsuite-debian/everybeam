@@ -25,7 +25,7 @@ class BeamFormerLofarHBA : public BeamFormerLofar {
    *
    * @param coordinate_system
    */
-  BeamFormerLofarHBA(const CoordinateSystem &coordinate_system)
+  BeamFormerLofarHBA(const CoordinateSystem& coordinate_system)
       : BeamFormerLofar(coordinate_system) {}
 
   /**
@@ -47,9 +47,9 @@ class BeamFormerLofarHBA : public BeamFormerLofar {
    * only the element_ is copied. This method is intended to be exclusively
    * used in Station::SetAntenna!
    *
-   * @return Antenna::Ptr
+   * @return std::shared_ptr<Antenna>
    */
-  Antenna::Ptr Clone() const final override;
+  std::shared_ptr<Antenna> Clone() const final override;
 
   /**
    * @brief Set the (unique) Tile for the BeamFormerLofarHBA object.
@@ -63,7 +63,7 @@ class BeamFormerLofarHBA : public BeamFormerLofar {
    *
    * @param position
    */
-  void AddTilePosition(const vector3r_t &position) {
+  void AddTilePosition(const vector3r_t& position) {
     tile_positions_.push_back(position);
   }
 
@@ -79,14 +79,14 @@ class BeamFormerLofarHBA : public BeamFormerLofar {
 
  private:
   // Local Array factor override
-  virtual diag22c_t LocalArrayFactor(
-      real_t time, real_t freq, const vector3r_t &direction,
-      const Options &options) const final override;
+  aocommon::MC2x2Diag LocalArrayFactor(
+      real_t time, real_t freq, const vector3r_t& direction,
+      const Options& options) const final override;
 
   // HBA specific: Array Factor at tile level, weighting the elements
   std::complex<double> TileArrayFactor(real_t time, real_t freq,
-                                       const vector3r_t &direction,
-                                       const Options &options) const;
+                                       const vector3r_t& direction,
+                                       const Options& options) const;
 
   // BeamFormerLofarHBA has only one unique tile, and ntiles
   // unique tile positions

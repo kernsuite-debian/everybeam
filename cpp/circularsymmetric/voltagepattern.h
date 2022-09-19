@@ -13,10 +13,11 @@ namespace circularsymmetric {
 //! Holds the information for a symmetric voltage pattern
 class VoltagePattern {
  public:
-  VoltagePattern(double frequency, double maximum_radius_arc_min) {
-    frequencies_.assign(1, frequency);
-    maximum_radius_arc_min_ = maximum_radius_arc_min;
-  };
+  VoltagePattern(aocommon::UVector<double> frequencies,
+                 double maximum_radius_arc_min, double reference_frequency)
+      : maximum_radius_arc_min_(maximum_radius_arc_min),
+        reference_frequency_(reference_frequency),
+        frequencies_(std::move(frequencies)){};
 
   size_t NSamples() const { return values_.size() / frequencies_.size(); }
 
@@ -33,6 +34,11 @@ class VoltagePattern {
               double pointing_ra, double pointing_dec, double phase_centre_dl,
               double phase_centre_dm, double frequency_hz) const;
 
+  // Specialization for single point
+  void Render(std::complex<float>* aterm, double phase_centre_ra,
+              double phase_centre_dec, double pointing_ra, double pointing_dec,
+              double frequency_hz) const;
+
  private:
   // Only works when frequencies_.size() > 1
   aocommon::UVector<double> InterpolateValues(double freq) const;
@@ -43,14 +49,16 @@ class VoltagePattern {
 
   double LmMaxSquared(double frequency_hz) const;
 
-  double inverse_increment_radius_, maximum_radius_arc_min_;
+  double inverse_increment_radius_;
+  const double maximum_radius_arc_min_;
+  const double reference_frequency_;
 
   // These are the radial (one-dimensional) values of the beam
   // It is an array of size nsamples x nfrequencies, where the sample index is
   // least significant (fastest changing)
   aocommon::UVector<double> values_;
 
-  // Array of since nfrequencies
+  // Array of size nfrequencies
   aocommon::UVector<double> frequencies_;
 };
 }  // namespace circularsymmetric

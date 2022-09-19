@@ -1,0 +1,35 @@
+# Copyright (C) 2021 ASTRON (Netherlands Institute for Radio Astronomy)
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# This file contains the pipelines that run on the SKAO repository of IDG, which
+# is at https://gitlab.com/ska-telescope/sdp/ska-sdp-func-everybeam
+
+include:
+  - local: .gitlab-ci.common.yml
+# Create Gitlab CI badges from CI metrics
+# https://developer.skao.int/en/latest/tools/continuousintegration.html#automated-collection-of-ci-health-metrics-as-part-of-the-ci-pipeline
+  - project: ska-telescope/templates-repository
+    file: gitlab-ci/includes/post_step.yml
+
+# Caching 'public' allows keeping the 'pages' output of multiple branches / MRs.
+cache:
+  paths:
+    - public
+
+pages:
+  stage: deploy
+  needs: ["versioning","test-and-coverage","build-doc"]
+  image: $BASE_IMAGE
+  variables:
+    OUTPUT: public/$CI_COMMIT_REF_SLUG
+  script:
+    - echo Deploying GitLab pages to $CI_PAGES_URL/$CI_COMMIT_REF_SLUG
+    - mkdir -p $OUTPUT/coverage
+    - gcovr -j`nproc` -a build/run-unit.json --html-details $OUTPUT/coverage/index.html
+    - cp -a doc/pages-index.html $OUTPUT/index.html
+    - cp -a build/doc/html $OUTPUT/doc
+  artifacts:
+    name: $CI_COMMIT_REF_SLUG
+    paths:
+      - public
+    expire_in: 1 week

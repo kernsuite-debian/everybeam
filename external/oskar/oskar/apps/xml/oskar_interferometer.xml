@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<s k="interferometer"><label>Interferometer settings</label>
+    <desc>These settings are used only when running the interferometer
+        simulation.</desc>
+    <s k="channel_bandwidth_hz" priority="1"><label>Channel bandwidth [Hz]</label>
+        <type name="UnsignedDouble" default="0"/>
+        <desc>The channel width, in Hz, used to simulate bandwidth smearing.
+            (Note that this can be different to the frequency increment if
+            channels do not cover a contiguous frequency range.)</desc></s>
+    <s k="time_average_sec" priority="1"><label>Time average [sec]</label>
+        <type name="UnsignedDouble" default="0"/>
+        <depends k="observation/mode" v="Tracking"/>
+        <desc>The correlator time-average duration, in seconds, used to
+            simulate time averaging smearing.</desc></s>
+    <s k="max_time_samples_per_block" priority="1">
+        <label>Max. time samples per block</label>
+        <type name="uint" default="8"/>
+        <desc>The maximum number of time samples held in memory before being
+            written to disk.</desc></s>
+    <s k="max_channels_per_block" priority="1">
+        <label>Max. channels per block</label>
+        <type name="IntRangeExt" default="auto">0,MAX,auto</type>
+        <desc>The maximum number of channels held in memory before being
+            written to disk.</desc></s>
+    <s k="correlation_type" priority="1"><label>Correlation type</label>
+        <type name="OptionList" default="Cross-correlations">
+            Cross-correlations,Auto-correlations,Both
+        </type>
+        <desc>The type of correlations to produce: either cross-correlations,
+            auto-correlations, or both.</desc></s>
+    <s k="uv_filter_min"><label>UV range filter min</label>
+        <type name="DoubleRangeExt" default="min">0,MAX,min,max</type>
+        <desc>The minimum value of the baseline UV length allowed by the
+            filter. <b>Note that visibilities on baseline UV lengths outside
+            this range will not be evaluated!</b></desc></s>
+    <s k="uv_filter_max"><label>UV range filter max</label>
+        <type name="DoubleRangeExt" default="max">0,MAX,min,max</type>
+        <desc>The maximum value of the baseline UV length allowed by the
+            filter. <b>Note that visibilities on baseline UV lengths outside
+            this range will not be evaluated!</b></desc></s>
+    <s k="uv_filter_units"><label>UV range filter units</label>
+        <type name="OptionList" default="W">Wavelengths,Metres</type>
+        <desc>The units of the baseline UV length filter values.</desc></s>
+
+    <import filename="oskar_interferometer_noise.xml"/>
+
+    <s k="oskar_vis_filename" priority="1">
+        <label>Output OSKAR visibility file</label>
+        <type name="OutputFile" default=""/>
+        <desc>Path of the OSKAR visibility output file containing the results
+            of the simulation. Leave blank if not required.</desc></s>
+    <s k="ms_filename" priority="1"><label>Output Measurement Set</label>
+        <type name="OutputFile" default=""/>
+        <desc>Path of the Measurement Set containing the results of the
+            simulation. Leave blank if not required.</desc></s>
+    <s k="force_polarised_ms" priority="1">
+        <label>Force polarised Measurement Set</label>
+        <type name="Bool" default="false"/>
+        <desc>If <b>True</b>, always write the Measurment Set in polarised
+            format even if the simulation was run in the single polarisation
+            'Scalar' (or Stokes-I) mode. If <b>False</b>, the size of the
+            polarisation dimension in the the Measurement Set will be
+            determined by the simulation mode.</desc></s>
+    <s k="ignore_w_components">
+        <label>Ignore W-components</label>
+        <type name="Bool" default="false"/>
+        <desc>If enabled, baseline W-coordinate component values will be set
+            to 0. <b>This will disable W-smearing.
+            Use only if you know what you're doing!</b></desc></s>
+</s>

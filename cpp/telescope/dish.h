@@ -9,14 +9,19 @@
 
 #include "telescope.h"
 
+#include "../circularsymmetric/coefficients.h"
+
 #include <casacore/measures/Measures/MDirection.h>
 
 namespace everybeam {
 
 namespace griddedresponse {
 class DishGrid;
-class GriddedResponse;
 }  // namespace griddedresponse
+
+namespace pointresponse {
+class PointResponse;
+}  // namespace pointresponse
 
 namespace telescope {
 
@@ -24,20 +29,36 @@ namespace telescope {
  * This class calculates the a-terms for dishes with a circularly symmetric
  * response.
  */
-class Dish : public Telescope {
-  friend class griddedresponse::DishGrid;
-
+class Dish final : public Telescope {
  public:
-  Dish(const casacore::MeasurementSet &ms, const Options &options);
+  Dish(const casacore::MeasurementSet& ms,
+       std::unique_ptr<circularsymmetric::Coefficients> coefficients,
+       const Options& options);
 
   std::unique_ptr<griddedresponse::GriddedResponse> GetGriddedResponse(
-      const coords::CoordinateSystem &coordinate_system) override;
+      const coords::CoordinateSystem& coordinate_system) const override;
+
+  std::unique_ptr<pointresponse::PointResponse> GetPointResponse(
+      double time) const override;
+
+  /**
+   * @brief Get (ra, dec) pointings of fields.
+   *
+   * @return std::vector<std::pair<double, double>> Vector of size number of
+   * fields, and (ra, dec) pointings as entries.
+   */
+  const std::vector<std::pair<double, double>>& GetFieldPointing() const {
+    return field_pointing_;
+  }
+
+  const circularsymmetric::Coefficients* GetDishCoefficients() const {
+    return dish_coefficients_.get();
+  }
 
  private:
-  struct MSProperties {
-    std::vector<std::pair<double, double>> field_pointing;
-  };
-  MSProperties ms_properties_;
+  std::unique_ptr<circularsymmetric::Coefficients> dish_coefficients_;
+  /// Store ra, dec pointing per field id from measurement set
+  std::vector<std::pair<double, double>> field_pointing_;
 };
 }  // namespace telescope
 }  // namespace everybeam

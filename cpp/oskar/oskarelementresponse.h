@@ -20,9 +20,12 @@ class OSKARElementResponseDipole : public ElementResponse {
     return common::Singleton<OSKARElementResponseDipole>::GetInstance();
   }
 
-  virtual void Response(
-      double freq, double theta, double phi,
-      std::complex<double> (&response)[2][2]) const final override;
+  ElementResponseModel GetModel() const final override {
+    return ElementResponseModel::kOSKARDipole;
+  }
+
+  aocommon::MC2x2 Response(double freq, double theta,
+                           double phi) const final override;
 };
 
 //! Implementation of the OSKAR spherical wave response model
@@ -45,18 +48,20 @@ class OSKARElementResponseSphericalWave : public ElementResponse {
    *
    * @param path Path to the coefficients file to load
    */
-  OSKARElementResponseSphericalWave(const std::string &path);
+  OSKARElementResponseSphericalWave(const std::string& path);
 
-  virtual void Response(
-      double freq, double theta, double phi,
-      std::complex<double> (&response)[2][2]) const final override;
+  ElementResponseModel GetModel() const final override {
+    return ElementResponseModel::kOSKARSphericalWave;
+  }
 
-  virtual void Response(
-      int element_id, double freq, double theta, double phi,
-      std::complex<double> (&response)[2][2]) const final override;
+  aocommon::MC2x2 Response(double freq, double theta,
+                           double phi) const final override;
+
+  aocommon::MC2x2 Response(int element_id, double freq, double theta,
+                           double phi) const final override;
 
  protected:
-  std::string GetPath(const char *) const;
+  std::string GetPath(const char*) const;
 
   std::unique_ptr<Datafile> datafile_;
 };

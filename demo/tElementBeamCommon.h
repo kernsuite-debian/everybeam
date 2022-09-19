@@ -1,9 +1,16 @@
 // Copyright (C) 2020 ASTRON (Netherlands Institute for Radio Astronomy)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#ifndef DEMO_ELEMENT_BEAM_COMMON_H_
+#define DEMO_ELEMENT_BEAM_COMMON_H_
+
 #include <iostream>
 #include <complex>
 #include <vector>
+
+#include <aocommon/matrix2x2.h>
+#include <aocommon/parallelfor.h>
+#include <aocommon/system.h>
 
 #include "beam-helper.h"
 
@@ -12,35 +19,34 @@ void calculateElementBeams(std::shared_ptr<everybeam::Station>& station,
                            size_t nr_antennas, unsigned int subgrid_size,
                            double frequency,
                            std::vector<std::complex<float>>& buffer) {
-  typedef std::complex<float> Data[nr_antennas][subgrid_size][subgrid_size][4];
-  Data* data_ptr = (Data*)buffer.data();
-
   auto elementResponse = station->GetElementResponse();
 
-#pragma omp parallel for
-  for (size_t a = 0; a < nr_antennas; a++) {
+  aocommon::ParallelFor<size_t> loop(aocommon::system::ProcessorCount());
+  loop.Run(0, nr_antennas, [&, nr_antennas, subgrid_size](size_t a) {
+    using Data =
+        std::complex<float>[nr_antennas][subgrid_size][subgrid_size][4];
+    Data* data_ptr = (Data*)buffer.data();
     for (unsigned y = 0; y < subgrid_size; y++) {
       for (unsigned x = 0; x < subgrid_size; x++) {
         // Get theta, phi
-        auto direction_thetaphi = thetaPhiDirections[y * subgrid_size + x];
+        const everybeam::vector2r_t& direction_thetaphi =
+            thetaPhiDirections[y * subgrid_size + x];
         double theta = direction_thetaphi[0];
         double phi = direction_thetaphi[1];
 
         // Compute gain
-        std::complex<double> gainMatrix[2][2] = {0.0};
+        // std::complex<double> gainMatrix[2][2] = {0.0};
+        aocommon::MC2x2 gainMatrix;
         if (std::isfinite(theta) && std::isfinite(phi)) {
-          elementResponse->Response(a, frequency, theta, phi, gainMatrix);
+          gainMatrix = elementResponse->Response(a, frequency, theta, phi);
         }
 
         // Store gain
         std::complex<float>* antBufferPtr = (*data_ptr)[a][y][x];
-        antBufferPtr[0] = gainMatrix[0][0];
-        antBufferPtr[1] = gainMatrix[0][1];
-        antBufferPtr[2] = gainMatrix[1][0];
-        antBufferPtr[3] = gainMatrix[1][1];
+        gainMatrix.AssignTo(antBufferPtr);
       }
     }
-  }
+  });
 }
 
 void calculateElementBeams(std::shared_ptr<everybeam::Station>& station,
@@ -48,32 +54,29 @@ void calculateElementBeams(std::shared_ptr<everybeam::Station>& station,
                            size_t nr_antennas, unsigned int subgrid_size,
                            double time, double frequency,
                            std::vector<std::complex<float>>& buffer) {
-  typedef std::complex<float> Data[nr_antennas][subgrid_size][subgrid_size][4];
-  Data* data_ptr = (Data*)buffer.data();
-
-#pragma omp parallel for
-  for (size_t a = 0; a < nr_antennas; a++) {
+  aocommon::ParallelFor<size_t> loop(aocommon::system::ProcessorCount());
+  loop.Run(0, nr_antennas, [&](size_t a) {
+    using Data =
+        std::complex<float>[nr_antennas][subgrid_size][subgrid_size][4];
+    Data* data_ptr = (Data*)buffer.data();
     for (unsigned y = 0; y < subgrid_size; y++) {
       for (unsigned x = 0; x < subgrid_size; x++) {
         // Get direction
         auto direction = itrfDirections[y * subgrid_size + x];
 
         // Compute gain
-        matrix22c_t gainMatrix = {0.0};
+        aocommon::MC2x2 gainMatrix(0., 0., 0., 0.);
         if (std::isfinite(direction[0])) {
-          gainMatrix = station->ComputeElementResponse(time, frequency,
-                                                       direction, a, true);
+          gainMatrix = station->ComputeElementResponse(
+              time, frequency, direction, a, true, false);
         }
 
         // Store gain
         std::complex<float>* antBufferPtr = (*data_ptr)[a][y][x];
-        antBufferPtr[0] = gainMatrix[0][0];
-        antBufferPtr[1] = gainMatrix[0][1];
-        antBufferPtr[2] = gainMatrix[1][0];
-        antBufferPtr[3] = gainMatrix[1][1];
+        gainMatrix.AssignTo(antBufferPtr);
       }
     }
-  }
+  });
 }
 
 void run(everybeam::ElementResponseModel elementResponseModel, double frequency,
@@ -97,7 +100,9 @@ void run(everybeam::ElementResponseModel elementResponseModel, double frequency,
   // Read station
   size_t field_id = 0;
   size_t station_id = 0;
-  auto station = ReadSingleStation(ms, station_id, elementResponseModel);
+  Options options;
+  options.element_response_model = elementResponseModel;
+  auto station = ReadSingleStation(ms, station_id, options);
   auto field_name = GetFieldName(ms, field_id);
   auto station_name = GetStationName(ms, station_id);
   auto nr_antennas = GetNrAntennas(ms, field_id);
@@ -138,3 +143,5 @@ void run(everybeam::ElementResponseModel elementResponseModel, double frequency,
   StoreBeam(output_filename, beam_thetaphi.data(), nr_antennas, subgrid_size,
             subgrid_size);
 }
+
+#endif

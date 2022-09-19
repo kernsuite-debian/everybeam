@@ -11,18 +11,21 @@
 
 #include <casacore/measures/Measures/MPosition.h>
 
+#include <array>
+
 namespace everybeam {
 
 namespace griddedresponse {
-class MWAGrid;
 class GriddedResponse;
 }  // namespace griddedresponse
+
+namespace pointresponse {
+class PointResponse;
+}  // namespace pointresponse
 
 namespace telescope {
 
 class MWA final : public Telescope {
-  friend class griddedresponse::MWAGrid;
-
  public:
   /**
    * @brief Construct a new MWA object
@@ -31,17 +34,20 @@ class MWA final : public Telescope {
    * @param model Element Response model
    * @param options telescope options
    */
-  MWA(const casacore::MeasurementSet &ms, const Options &options);
+  MWA(const casacore::MeasurementSet& ms, const Options& options);
 
   std::unique_ptr<griddedresponse::GriddedResponse> GetGriddedResponse(
-      const coords::CoordinateSystem &coordinate_system) override;
+      const coords::CoordinateSystem& coordinate_system) const override;
+
+  std::unique_ptr<pointresponse::PointResponse> GetPointResponse(
+      double time) const override;
+
+  casacore::MPosition GetArrayPosition() const { return array_position_; }
+  const std::array<double, 16>& GetDelays() const { return delays_; }
 
  private:
-  struct MSProperties {
-    double delays[16];
-    casacore::MPosition array_position;
-  };
-  MSProperties ms_properties_;
+  casacore::MPosition array_position_;
+  std::array<double, 16> delays_;
 };
 
 }  // namespace telescope

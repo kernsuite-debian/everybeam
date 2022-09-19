@@ -33,7 +33,7 @@ class BeamFormerLofar : public Antenna {
    *
    * @param coordinate_system
    */
-  BeamFormerLofar(const CoordinateSystem &coordinate_system)
+  BeamFormerLofar(const CoordinateSystem& coordinate_system)
       : Antenna(coordinate_system) {}
 
   /**
@@ -53,9 +53,9 @@ class BeamFormerLofar : public Antenna {
   /**
    * @brief Pure virtual method of clone.
    *
-   * @return Antenna::Ptr
+   * @return std::shared_ptr<Antenna>
    */
-  Antenna::Ptr Clone() const override = 0;
+  std::shared_ptr<Antenna> Clone() const override = 0;
 
   /**
    * @brief Set the (unique) Element object for the BeamFormerLofar object.
@@ -69,7 +69,7 @@ class BeamFormerLofar : public Antenna {
    *
    * @param position
    */
-  void AddElementPosition(const vector3r_t &position) {
+  void AddElementPosition(const vector3r_t& position) {
     element_positions_.push_back(position);
   }
 
@@ -81,31 +81,23 @@ class BeamFormerLofar : public Antenna {
   std::shared_ptr<Element> GetElement() const { return element_; };
 
  protected:
-  // Compute the geometric response of the BeamFormer.
-  // Method assumes that the direction is specified as the
-  // (frequency weighted) difference between the pointing_dir
-  // and the probing direction
-  std::vector<std::complex<double>> ComputeGeometricResponse(
-      std::vector<vector3r_t> phase_reference_positions,
-      const vector3r_t &direction) const;
-
   // Pure virtual implementation of array factor at station level
-  virtual diag22c_t LocalArrayFactor(real_t time, real_t freq,
-                                     const vector3r_t &direction,
-                                     const Options &options) const override = 0;
+  aocommon::MC2x2Diag LocalArrayFactor(
+      real_t time, real_t freq, const vector3r_t& direction,
+      const Options& options) const override = 0;
 
   // Array factor at Field level. antenna_positions_ and antenna_enabled_
   // either represent the tiles in case of LOFAR HBA or the elements in case
   // of LOFAR LBA
-  diag22c_t FieldArrayFactor(
-      real_t time, real_t freq, const vector3r_t &direction,
-      const Options &options, const std::vector<vector3r_t> &antenna_positions,
-      const std::vector<std::array<bool, 2>> &antenna_enabled) const;
+  aocommon::MC2x2Diag FieldArrayFactor(
+      real_t time, real_t freq, const vector3r_t& direction,
+      const Options& options, const std::vector<vector3r_t>& antenna_positions,
+      const std::vector<std::array<bool, 2>>& antenna_enabled) const;
 
   // Override of the LocalResponse method
-  virtual matrix22c_t LocalResponse(
-      real_t time, real_t freq, const vector3r_t &direction,
-      const Options &options) const final override;
+  aocommon::MC2x2 LocalResponse(real_t time, real_t freq,
+                                const vector3r_t& direction,
+                                const Options& options) const final override;
 
   // Each BeamFormerLofar stores one unique element, and a vector of unique
   // positions Usually, the Element will be of type ElementHamaker.

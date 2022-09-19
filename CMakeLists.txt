@@ -1,89 +1,111 @@
-# Copyright (C) 2020 ASTRON (Netherlands Institute for Radio Astronomy)
+# Copyright (C) 2021 ASTRON (Netherlands Institute for Radio Astronomy)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 #------------------------------------------------------------------------------
 # Top level CMakeLists.txt file for EveryBeam
-cmake_minimum_required(VERSION 3.0.0)
+cmake_minimum_required(VERSION 3.7)
 
 #------------------------------------------------------------------------------
 # Set version name and project number
-set(EVERYBEAM_VERSION 0.1.2)
+set(EVERYBEAM_VERSION 0.3.1)
 if(EVERYBEAM_VERSION MATCHES "^([0-9]+)\\.([0-9]+)\\.([0-9]+)")
   set(EVERYBEAM_VERSION_MAJOR "${CMAKE_MATCH_1}")
   set(EVERYBEAM_VERSION_MINOR "${CMAKE_MATCH_2}")
   set(EVERYBEAM_VERSION_PATCH "${CMAKE_MATCH_3}")
-  message(${EVERYBEAM_VERSION_PATCH})
 else()
-  message(FATAL_ERROR "Failed to parse EVERYBEAM_VERSION='${EVERYBEAM_VERSION}'")
+  message(
+    FATAL_ERROR "Failed to parse EVERYBEAM_VERSION='${EVERYBEAM_VERSION}'")
 endif()
 
 project(EveryBeam VERSION ${EVERYBEAM_VERSION})
 
-option (BUILD_WITH_PYTHON "Build python bindings" OFF)
-option (BUILD_APT_PACKAGES "Build apt package" OFF)
+option(BUILD_WITH_PYTHON "Build python bindings" OFF)
+option(BUILD_APT_PACKAGES "Build apt package" OFF)
+option(BUILD_TESTING "Build tests" OFF)
+option(DOWNLOAD_LOBES "Download and install LOBEs coefficient files" OFF)
 
-string(TOLOWER ${CMAKE_PROJECT_NAME} projectname )
+string(TOLOWER ${CMAKE_PROJECT_NAME} projectname)
 
 # Set the path to CMake modules
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/CMake)
+include(ExternalProject)
 
 # Configure directory for data files
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -Wall -DNDEBUG")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -Wall")
 string(APPEND CMAKE_SHARED_LINKER_FLAGS " -Wl,--no-undefined")
-set(CMAKE_INSTALL_DATA_DIR "${CMAKE_INSTALL_PREFIX}/share/${projectname}")
-message("Storing data in: " ${CMAKE_INSTALL_DATA_DIR})
+set(EVERYBEAM_DATADIR "share/${projectname}")
+set(EVERYBEAM_FULL_DATADIR "${CMAKE_INSTALL_PREFIX}/${EVERYBEAM_DATADIR}")
+message("Storing data in: " ${EVERYBEAM_FULL_DATADIR})
 
 # Find and include git submodules
 find_package(Git QUIET)
 if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
-# Update submodules as needed
-    option(GIT_SUBMODULE "Check submodules during build" ON)
-    if(GIT_SUBMODULE)
-        message(STATUS "Submodule update")
-        execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive --checkout
-                        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-                        RESULT_VARIABLE GIT_SUBMOD_RESULT)
-        if(NOT GIT_SUBMOD_RESULT EQUAL "0")
-            message(FATAL_ERROR "git submodule update --init failed with ${GIT_SUBMOD_RESULT}, please checkout submodules")
-        endif()
+  # Update submodules as needed
+  option(GIT_SUBMODULE "Check submodules during build" ON)
+  if(GIT_SUBMODULE)
+    message(STATUS "Submodule update")
+    execute_process(
+      COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive --checkout
+              --depth 1
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+      RESULT_VARIABLE GIT_SUBMOD_RESULT)
+    if(NOT GIT_SUBMOD_RESULT EQUAL "0")
+      message(
+        FATAL_ERROR
+          "git submodule update --init failed with ${GIT_SUBMOD_RESULT}, please checkout submodules"
+      )
     endif()
+  endif()
 endif()
 
 # Include aocommon/eigen3/pybind11 headers
 include_directories("${CMAKE_SOURCE_DIR}/external/aocommon/include/")
 include_directories("${CMAKE_SOURCE_DIR}/external/eigen/")
 add_subdirectory("${CMAKE_SOURCE_DIR}/external/pybind11")
-include_directories(${pybind11_INCLUDE_DIR})
+include_directories(${pybind11_INCLUDE_DIRS})
+
+# Include schaapcommon
+add_subdirectory("${CMAKE_SOURCE_DIR}/external/schaapcommon")
+include_directories("${CMAKE_SOURCE_DIR}/external/schaapcommon/include")
+
+# Include oskar beam utils
+add_subdirectory("${CMAKE_SOURCE_DIR}/external/oskar/oskar/beam_utils")
 
 # Find and include HDF5
-find_package(HDF5 COMPONENTS C CXX REQUIRED)
-add_definitions(${HDF5_DEFINITIONS})
-include_directories(${HDF5_INCLUDE_DIR})
+find_package(
+  HDF5
+  COMPONENTS C CXX
+  REQUIRED)
+add_definitions(${HDF5_DEFINITIONS} -DH5_USE_110_API)
+include_directories(${HDF5_INCLUDE_DIRS})
+
+find_package(Threads REQUIRED)
 
 # Find and include Casacore
 set(CASACORE_MAKE_REQUIRED_EXTERNALS_OPTIONAL TRUE)
 find_package(Casacore REQUIRED COMPONENTS casa ms tables measures fits)
-include_directories(${CASACORE_INCLUDE_DIR})
-
-# Find and include OpenMP
-find_package(OpenMP REQUIRED)
+include_directories(${CASACORE_INCLUDE_DIRS})
 
 # Find and include Boost headers (boost::math required for MWA beam)
-find_package(Boost REQUIRED)
-include_directories(${Boost_INCLUDE_DIR})
+# Filesystem component required to search for LOBES coefficient files
+find_package(
+  Boost
+  COMPONENTS filesystem system
+  REQUIRED)
+include_directories(${Boost_INCLUDE_DIRS})
 
 # Find and include FFTW3 float libraries
-find_package(FFTW3 COMPONENTS single REQUIRED)
+find_package(
+  FFTW3
+  COMPONENTS single
+  REQUIRED)
 
 # Find CFITSIO, needed for everybeam::aterms only
 find_package(CFITSIO REQUIRED)
-include_directories(${CFITSIO_INCLUDE_DIR})
+include_directories(${CFITSIO_INCLUDE_DIRS})
 
 #------------------------------------------------------------------------------
 # Set CMake and compiler options
-if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-    include(CTest)
-endif()
 
 # wget needs to be installed in order to download coefficient files on the fly
 include(FindWget)
@@ -91,23 +113,23 @@ if(NOT WGET_FOUND)
   message(FATAL_ERROR "wget not found. Install wget on your local system")
 endif()
 
-if (POLICY CMP0074)
-cmake_policy(SET CMP0074 NEW)
+if(POLICY CMP0074)
+  cmake_policy(SET CMP0074 NEW)
 endif()
 
 # Set compile options
 add_compile_options(-std=c++11 "${OpenMP_CXX_FLAGS}" -Wall)
 string(APPEND CMAKE_SHARED_LINKER_FLAGS " -Wl,--no-undefined")
 
-if (NOT CMAKE_BUILD_TYPE MATCHES Debug)
-    add_compile_options(-DNDEBUG)
+if(NOT CMAKE_BUILD_TYPE MATCHES Debug)
+  add_compile_options(-DNDEBUG)
 endif()
 
 # The following stuff will set the "rpath" correctly, so that
 # LD_LIBRARY_PATH doesn't have to be set.
 
 # use, i.e. don't skip the full RPATH for the build tree
-set(CMAKE_SKIP_BUILD_RPATH  FALSE)
+set(CMAKE_SKIP_BUILD_RPATH FALSE)
 # when building, don't use the install RPATH already
 # (but later on when installing)
 set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
@@ -116,10 +138,28 @@ set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 # which point to directories outside the build tree to the install RPATH
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 # the RPATH to be used when installing, but only if it's not a system directory
-list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/lib" isSystemDir)
+list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES
+     "${CMAKE_INSTALL_PREFIX}/lib" isSystemDir)
 if("${isSystemDir}" STREQUAL "-1")
-   set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+  set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 endif("${isSystemDir}" STREQUAL "-1")
+
+#------------------------------------------------------------------------------
+# Set up a test_data directory in the build directory.
+# Create symbolic links to the files/directories in the source directory.
+if(${CMAKE_VERSION} VERSION_GREATER_EQUAL 3.14) # Required for file(CREATE_LINK)
+  set(DATA_DIR ${CMAKE_BINARY_DIR}/test_data)
+  file(MAKE_DIRECTORY ${DATA_DIR})
+  file(GLOB SOURCE_DATA_FILES "${CMAKE_SOURCE_DIR}/test_data/*")
+  foreach(SOURCE_DATA_FILE ${SOURCE_DATA_FILES})
+    string(REPLACE ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR} BINARY_DATA_FILE
+                   ${SOURCE_DATA_FILE})
+    file(CREATE_LINK ${SOURCE_DATA_FILE} ${BINARY_DATA_FILE} SYMBOLIC)
+  endforeach()
+else()
+  # For older versions, fall back to using the source directory.
+  set(DATA_DIR ${CMAKE_SOURCE_DIR}/test_data)
+endif()
 
 #------------------------------------------------------------------------------
 # Add source
@@ -128,46 +168,38 @@ add_subdirectory(cpp)
 #------------------------------------------------------------------------------
 # Add tests
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME AND BUILD_TESTING)
+  include(CTest)
+
+  add_subdirectory(cpp/test)
+
   # TODO: compiling the demos should probably be a different cmake project
   # in which we use find_package(EveryBeam)
   add_subdirectory(demo)
-
-  if(Boost_FOUND)
-    add_subdirectory(cpp/test)
-  else()
-    message("Boost NOT found. This is not an error but indicates that the tests won't be built.")
-  endif()
 endif()
 
 #------------------------------------------------------------------------------
 # Generate config.h and version.h headers
-configure_file(${CMAKE_SOURCE_DIR}/CMake/config.h.in ${CMAKE_BINARY_DIR}/config.h)
-configure_file(${CMAKE_SOURCE_DIR}/CMake/version.h.in ${CMAKE_BINARY_DIR}/version.h)
+configure_file(${CMAKE_SOURCE_DIR}/CMake/config.h.in
+               ${CMAKE_BINARY_DIR}/config.h)
+configure_file(${CMAKE_SOURCE_DIR}/CMake/version.h.in
+               ${CMAKE_BINARY_DIR}/version.h)
 
-install(FILES
-  ${CMAKE_BINARY_DIR}/config.h  
-  ${CMAKE_BINARY_DIR}/version.h
-  DESTINATION "include/${CMAKE_PROJECT_NAME}"
-  )
+install(FILES ${CMAKE_BINARY_DIR}/config.h ${CMAKE_BINARY_DIR}/version.h
+        DESTINATION "include/${CMAKE_PROJECT_NAME}")
 
 #------------------------------------------------------------------------------
 if(BUILD_WITH_PYTHON)
   add_subdirectory(python)
+
+  if(BUILD_TESTING)
+    add_subdirectory(python/test)
+  endif()
 endif()
 
 #------------------------------------------------------------------------------
 # Documentation
-find_package(Doxygen)
+add_subdirectory(doc)
 
-if(DOXYGEN_FOUND)
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/docs/Doxyfile.in ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile @ONLY)
-add_custom_target(doc
-       ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
-       WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-       COMMENT "Generating developer API documentation with Doxygen" VERBATIM)
-elseif(DOXYGEN_FOUND)
-
-endif(DOXYGEN_FOUND)
 #------------------------------------------------------------------------------
 
 #------------------------------------------------------------------------------
@@ -176,3 +208,5 @@ if(BUILD_APT_PACKAGES)
   add_subdirectory(package)
 endif()
 #------------------------------------------------------------------------------
+
+option(CMAKE_EXPORT_COMPILE_COMMANDS ON)

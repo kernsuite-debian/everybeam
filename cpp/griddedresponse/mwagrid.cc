@@ -12,19 +12,18 @@
 
 #include <memory>
 
-using aocommon::HMC4x4;
-using aocommon::MC2x2;
-using aocommon::UVector;
-using everybeam::griddedresponse::MWAGrid;
 using everybeam::mwabeam::TileBeam2016;
 
-void MWAGrid::CalculateStation(std::complex<float>* buffer, double time,
-                               double frequency, size_t station_idx, size_t) {
+namespace everybeam {
+namespace griddedresponse {
+void MWAGrid::Response(BeamMode /* beam_mode */, std::complex<float>* buffer,
+                       double time, double frequency, size_t /* station_idx */,
+                       size_t /* field_id */) {
   const telescope::MWA& mwatelescope =
       static_cast<const telescope::MWA&>(*telescope_);
+
   casacore::MEpoch time_epoch(casacore::Quantity(time, "s"));
-  casacore::MeasFrame frame(mwatelescope.ms_properties_.array_position,
-                            time_epoch);
+  casacore::MeasFrame frame(mwatelescope.GetArrayPosition(), time_epoch);
 
   const casacore::MDirection::Ref hadec_ref(casacore::MDirection::HADEC, frame);
   const casacore::MDirection::Ref azelgeo_ref(casacore::MDirection::AZELGEO,
@@ -33,12 +32,12 @@ void MWAGrid::CalculateStation(std::complex<float>* buffer, double time,
   casacore::MDirection::Convert j2000_to_hadecref(j2000_ref, hadec_ref),
       j2000_to_azelgeoref(j2000_ref, azelgeo_ref);
   casacore::MPosition wgs = casacore::MPosition::Convert(
-      mwatelescope.ms_properties_.array_position, casacore::MPosition::WGS84)();
-  double arrLatitude = wgs.getValue().getLat();
+      mwatelescope.GetArrayPosition(), casacore::MPosition::WGS84)();
+  const double arr_latitude = wgs.getValue().getLat();
 
   if (!tile_beam_) {
     tile_beam_.reset(
-        new TileBeam2016(mwatelescope.ms_properties_.delays,
+        new TileBeam2016(mwatelescope.GetDelays().data(),
                          mwatelescope.GetOptions().frequency_interpolation,
                          mwatelescope.GetOptions().coeff_path));
   }
@@ -51,57 +50,59 @@ void MWAGrid::CalculateStation(std::complex<float>* buffer, double time,
       m += phase_centre_dm_;
       aocommon::ImageCoordinates::LMToRaDec(l, m, ra_, dec_, ra, dec);
 
-      std::complex<double> gain[4];
+      aocommon::MC2x2 gain;
       tile_beam_->ArrayResponse(ra, dec, j2000_ref, j2000_to_hadecref,
-                                j2000_to_azelgeoref, arrLatitude, frequency,
-                                gain);
-
-      for (size_t i = 0; i != 4; ++i) {
-        *buffer_ptr = gain[i];
-        ++buffer_ptr;
-      }
+                                j2000_to_azelgeoref, arr_latitude, frequency,
+                                gain.Data());
+      gain.AssignTo(buffer_ptr);
+      buffer_ptr += 4;
     }
   }
 }
 
-void MWAGrid::CalculateAllStations(std::complex<float>* buffer, double time,
-                                   double frequency, size_t) {
-  CalculateStation(buffer, time, frequency, 0, 0);
+void MWAGrid::ResponseAllStations(BeamMode beam_mode,
+                                  std::complex<float>* buffer, double time,
+                                  double frequency,
+                                  [[maybe_unused]] size_t field_id) {
+  Response(beam_mode, buffer, time, frequency, 0, 0);
+  const size_t station_buffer = width_ * height_ * 4;
   // Repeated copy for nstations
   for (size_t i = 1; i != telescope_->GetNrStations(); ++i) {
-    std::copy_n(buffer, width_ * height_ * 4,
-                buffer + i * width_ * height_ * 4);
+    std::copy_n(buffer, station_buffer, buffer + i * station_buffer);
   }
 }
 
-void MWAGrid::MakeIntegratedSnapshot(std::vector<aocommon::HMC4x4>& matrices,
+void MWAGrid::MakeIntegratedSnapshot(BeamMode beam_mode,
+                                     std::vector<aocommon::HMC4x4>& matrices,
                                      double time, double frequency,
                                      size_t field_id,
                                      const double* baseline_weights_interval) {
-  size_t nstations = telescope_->GetNrStations();
-  UVector<std::complex<float>> buffer_undersampled(
-      GetStationBufferSize(nstations));
-  CalculateAllStations(buffer_undersampled.data(), time, frequency, field_id);
+  const size_t n_stations = telescope_->GetNrStations();
+  aocommon::UVector<std::complex<float>> buffer_undersampled(
+      GetStationBufferSize(n_stations));
+  ResponseAllStations(beam_mode, buffer_undersampled.data(), time, frequency,
+                      field_id);
 
   // For MWA, we can simply weight a (time) snapshot with the accumulated
   // baseline weights
-  size_t nbaselines = nstations * (nstations + 1) / 2;
+  const size_t n_baselines = n_stations * (n_stations + 1) / 2;
   double snapshot_weight = 0.;
-  for (size_t index = 0; index != nbaselines; ++index) {
+  for (size_t index = 0; index != n_baselines; ++index) {
     snapshot_weight += baseline_weights_interval[index];
   }
 
   for (size_t y = 0; y != height_; ++y) {
     for (size_t x = 0; x != width_; ++x) {
       size_t offset = (y * width_ + x) * 4;
-      MC2x2 A(buffer_undersampled[offset], buffer_undersampled[offset + 1],
-              buffer_undersampled[offset + 2], buffer_undersampled[offset + 3]);
+      const aocommon::MC2x2 A(&buffer_undersampled[offset]);
 
       // Mueller matrix constant for all baselines, so just compute once for
       // each individual pixel
       matrices[y * width_ + x] =
-          HMC4x4::KroneckerProduct(A.HermTranspose().Transpose(), A) *
+          aocommon::HMC4x4::KroneckerProduct(A.HermTranspose().Transpose(), A) *
           snapshot_weight;
     }
   }
 }
+}  // namespace griddedresponse
+}  // namespace everybeam

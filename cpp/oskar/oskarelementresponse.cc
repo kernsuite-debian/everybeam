@@ -2,24 +2,28 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "oskarelementresponse.h"
-#include "oskar.h"
 #include "config.h"
 #include <iostream>
 
+#include <oskar_beam_utils.h>
+
+using oskar::beam_utils::oskar_evaluate_dipole_pattern_double;
+using oskar::beam_utils::oskar_evaluate_spherical_wave_sum_double;
+
 namespace everybeam {
 
-void OSKARElementResponseDipole::Response(
-    double freq, double theta, double phi,
-    std::complex<double> (&response)[2][2]) const {
+aocommon::MC2x2 OSKARElementResponseDipole::Response(double freq, double theta,
+                                                     double phi) const {
+  aocommon::MC2x2 response = aocommon::MC2x2::Zero();
   double dipole_length_m = 1;  // TODO
-  std::complex<double>* response_ptr = (std::complex<double>*)response;
 
   double phi_x = phi;
   double phi_y = phi + M_PI_2;
   oskar_evaluate_dipole_pattern_double(1, &theta, &phi_x, freq, dipole_length_m,
-                                       response_ptr);
+                                       response.Data());
   oskar_evaluate_dipole_pattern_double(1, &theta, &phi_y, freq, dipole_length_m,
-                                       response_ptr + 2);
+                                       response.Data() + 2);
+  return response;
 }
 
 OSKARElementResponseSphericalWave::OSKARElementResponseSphericalWave() {
@@ -32,9 +36,9 @@ OSKARElementResponseSphericalWave::OSKARElementResponseSphericalWave(
   datafile_.reset(new Datafile(path));
 }
 
-void OSKARElementResponseSphericalWave::Response(
-    double freq, double theta, double phi,
-    std::complex<double> (&response)[2][2]) const {
+aocommon::MC2x2 OSKARElementResponseSphericalWave::Response(
+    [[maybe_unused]] double freq, [[maybe_unused]] double theta,
+    [[maybe_unused]] double phi) const {
   // This ElementResponse model is element specific, so an element_id is
   // required to know for what element the response needs to be evaluated A
   // std::invalid_argument exception is thrown although strictly speaking it are
@@ -44,15 +48,15 @@ void OSKARElementResponseSphericalWave::Response(
       "OSKARElementResponseSphericalWave: missing argument element_id");
 }
 
-void OSKARElementResponseSphericalWave::Response(
-    int element_id, double freq, double theta, double phi,
-    std::complex<double> (&response)[2][2]) const {
-  element_id = 0;
+aocommon::MC2x2 OSKARElementResponseSphericalWave::Response(int element_id,
+                                                            double freq,
+                                                            double theta,
+                                                            double phi) const {
+  aocommon::MC2x2 response = aocommon::MC2x2::Zero();
 
   auto dataset = datafile_->Get(freq);
   auto l_max = dataset->GetLMax();
 
-  std::complex<double>* response_ptr = (std::complex<double>*)response;
   std::complex<double>* alpha_ptr = dataset->GetAlphaPtr(element_id);
 
   double phi_x = phi;
@@ -65,8 +69,9 @@ void OSKARElementResponseSphericalWave::Response(
   // That case needs to be detected when the coefficients are read,
   // and here phi_y needs to be set accordingly.
 
-  oskar_evaluate_spherical_wave_sum_double(1, &theta, &phi_x, &phi_y, l_max,
-                                           alpha_ptr, response_ptr);
+  oskar_evaluate_spherical_wave_sum_double(theta, phi_x, phi_y, l_max,
+                                           alpha_ptr, response.Data());
+  return response;
 }
 
 std::string OSKARElementResponseSphericalWave::GetPath(

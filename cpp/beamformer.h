@@ -6,12 +6,14 @@
 
 #include <complex>
 #include <vector>
+#include <mutex>
+
+#include <aocommon/uvector.h>
 
 #include "element.h"
 #include "common/types.h"
+#include "common/mathutils.h"
 #include "fieldresponse.h"
-
-#include <mutex>
 
 namespace everybeam {
 class BeamFormer : public Antenna {
@@ -23,22 +25,22 @@ class BeamFormer : public Antenna {
    *
    */
   BeamFormer(std::shared_ptr<FieldResponse> field_response = nullptr)
-      : Antenna(), field_response_(field_response) {
-    local_phase_reference_position_ =
-        TransformToLocalPosition(phase_reference_position_);
-  }
+      : Antenna(),
+        local_phase_reference_position_(
+            TransformToLocalPosition(phase_reference_position_)),
+        field_response_(field_response) {}
 
   /**
    * @brief Construct a new BeamFormer object given a coordinate system.
    *
    * @param coordinate_system
    */
-  BeamFormer(const CoordinateSystem &coordinate_system,
+  BeamFormer(const CoordinateSystem& coordinate_system,
              std::shared_ptr<FieldResponse> field_response = nullptr)
-      : Antenna(coordinate_system), field_response_(field_response) {
-    local_phase_reference_position_ =
-        TransformToLocalPosition(phase_reference_position_);
-  }
+      : Antenna(coordinate_system),
+        local_phase_reference_position_(
+            TransformToLocalPosition(phase_reference_position_)),
+        field_response_(field_response) {}
 
   /**
    * @brief Construct a new BeamFormer object given a coordinate system and a
@@ -48,29 +50,33 @@ class BeamFormer : public Antenna {
    * @param phase_reference_position
    */
   BeamFormer(CoordinateSystem coordinate_system,
-             vector3r_t phase_reference_position,
+             const vector3r_t& phase_reference_position,
              std::shared_ptr<FieldResponse> field_response = nullptr)
       : Antenna(coordinate_system, phase_reference_position),
-        field_response_(field_response) {
-    local_phase_reference_position_ =
-        TransformToLocalPosition(phase_reference_position_);
-  }
+        local_phase_reference_position_(
+            TransformToLocalPosition(phase_reference_position_)),
+        field_response_(field_response) {}
 
-  BeamFormer(vector3r_t phase_reference_position,
+  BeamFormer(const vector3r_t& phase_reference_position,
              std::shared_ptr<FieldResponse> field_response = nullptr)
-      : Antenna(phase_reference_position), field_response_(field_response) {
-    local_phase_reference_position_ =
-        TransformToLocalPosition(phase_reference_position_);
-  }
+      : Antenna(phase_reference_position),
+        local_phase_reference_position_(
+            TransformToLocalPosition(phase_reference_position_)),
+        field_response_(field_response) {}
 
-  Antenna::Ptr Clone() const override;
+  std::shared_ptr<Antenna> Clone() const override;
 
   /**
    * @brief Add an antenna to the antennas_ array.
    *
    * @param antenna
    */
-  void AddAntenna(Antenna::Ptr antenna) { antennas_.push_back(antenna); }
+  void AddAntenna(std::shared_ptr<Antenna> antenna) {
+    antennas_.push_back(antenna);
+    delta_phase_reference_positions_.push_back(
+        antennas_.back()->phase_reference_position_ -
+        local_phase_reference_position_);
+  }
 
   /**
    * @brief Extracts an antenna from the beamformer
@@ -88,48 +94,70 @@ class BeamFormer : public Antenna {
    *
    * The beamformer itself remains unchanged.
    */
-  Antenna::Ptr ExtractAntenna(size_t antenna_index) const;
+  std::shared_ptr<Antenna> ExtractAntenna(size_t antenna_index) const;
+
+  /**
+   * @brief Compute the geometric response given the the phase reference
+   * directions in the beam former and a direction of interest. In typical use
+   * cases, the direction of interest is computed as the (frequency weighted)
+   * difference between the pointing direction and the direction of interest,
+   * i.e. direction = pointing_freq * pointing_dir - interest_freq *
+   *
+   * @param phase_reference_positions Phase reference positions.
+   * @param direction The direction of interest.
+   * @return The geometry response for each position.
+   */
+  static aocommon::UVector<std::complex<double>> ComputeGeometricResponse(
+      const std::vector<vector3r_t>& phase_reference_positions,
+      const vector3r_t& direction);
 
  protected:
-  vector3r_t
-      local_phase_reference_position_;  // in coordinate system of Antenna
-
-  // Transform position vector into a local position vector
-  vector3r_t TransformToLocalPosition(const vector3r_t &position);
-
   // Compute the BeamFormer response in certain direction of arrival (ITRF, m)
   // and return (Jones) matrix of response
-  virtual matrix22c_t LocalResponse(real_t time, real_t freq,
-                                    const vector3r_t &direction,
-                                    const Options &options) const override;
+  aocommon::MC2x2 LocalResponse(real_t time, real_t freq,
+                                const vector3r_t& direction,
+                                const Options& options) const override;
 
   // Compute the local ArrayFactor, with ArrayFactor a vectorial
-  // "representation" of Jones matrix
-  virtual diag22c_t LocalArrayFactor(real_t time, real_t freq,
-                                     const vector3r_t &direction,
-                                     const Options &options) const override;
+  // "representation" of a diagonal Jones matrix
+  aocommon::MC2x2Diag LocalArrayFactor(real_t time, real_t freq,
+                                       const vector3r_t& direction,
+                                       const Options& options) const override;
 
-  // Compute the geometric response for all the antennas in the BeamFormer based
-  // on the difference vector between the pointing direction and the direction
-  // of interest. This difference vector should be computed as: direction =
-  // pointing_freq * pointing_dir - interest_freq * interest_dir
-  std::vector<std::complex<double>> ComputeGeometricResponse(
-      const vector3r_t &direction) const;
-
-  // Compute the weights based on the difference vector between the pointing
-  // direction and the direction of interest. Analogous to
-  // ComputeGeometricResponse, this difference vector should be computed as:
-  // direction = pointing_freq * pointing_dir - interest_freq * interest_dir
-  std::vector<std::pair<std::complex<double>, std::complex<double>>>
-  ComputeWeightedResponses(const vector3r_t &direction) const;
+  const vector3r_t
+      local_phase_reference_position_;  // in coordinate system of Antenna
 
   // List of antennas in BeamFormer
-  std::vector<Antenna::Ptr> antennas_;
+  std::vector<std::shared_ptr<Antenna>> antennas_;
+  std::vector<vector3r_t> delta_phase_reference_positions_;
 
   // (Optional) shared pointer to field response model (e.g. LOBES)
   std::shared_ptr<FieldResponse> field_response_;
 
  private:
+  /**
+   * @brief Transform position vector into a local position vector.
+   */
+  vector3r_t TransformToLocalPosition(const vector3r_t& position);
+
+  /**
+   * @brief Compute the beamformer weights based on the difference vector
+   * between the pointing direction and the direction of interest. Analogous to
+   * \c ComputeGeometricResponse , this difference vector should be computed as:
+   * direction = pointing_freq * pointing_dir - interest_freq * interest_dir
+   *
+   * @param direction Direction of interest (ITRF)
+   * @return std::vector<aocommon::MC2x2Diag> Weight matrix per antenna inside
+   * the beamformer
+   */
+  std::vector<aocommon::MC2x2Diag> ComputeWeightedResponses(
+      const vector3r_t& direction) const;
+
+  /**
+   * @brief Mutex providing a locking mechanism in case field quantities can be
+   * precomputed (e.g. the basefunctions in a specific direction for the LOBEs
+   * model)
+   */
   mutable std::mutex mtx_;
 };
 }  // namespace everybeam

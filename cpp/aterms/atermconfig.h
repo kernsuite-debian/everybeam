@@ -22,7 +22,7 @@ namespace aterms {
 
 class ParsetProvider;
 
-class ATermConfig : public ATermBase {
+class ATermConfig final : public ATermBase {
  public:
   ATermConfig(size_t n_antennas,
               const coords::CoordinateSystem& coordinate_system,
@@ -45,7 +45,7 @@ class ATermConfig : public ATermBase {
 
   /** Reimplemented from ATermBase */
   bool Calculate(std::complex<float>* buffer, double time, double frequency,
-                 size_t fieldId, const double* uvwInM) final override;
+                 size_t fieldId, const double* uvwInM) override;
 
   /** Reimplemented from ATermBase */
   double AverageUpdateTime() const override {
@@ -63,7 +63,7 @@ class ATermConfig : public ATermBase {
    * @param settings aterm specific settings
    * @param frequency_interpolation Interpolate between frequencies? Relevant
    * for MWA only.
-   * @param use_differential_beam Use differential beam?
+   * @param beam_normalisation_mode What type of normalisation will be applied?
    * @param use_channel_frequency Use channel frequency
    * @param element_response_model Element response model
    * @return std::unique_ptr<ATermBeam>
@@ -72,8 +72,9 @@ class ATermConfig : public ATermBase {
       const casacore::MeasurementSet& ms,
       const coords::CoordinateSystem& coordinate_system,
       const ATermSettings& settings, bool frequency_interpolation,
-      bool use_differential_beam, bool use_channel_frequency,
-      const std::string& element_response_model);
+      const std::string& beam_normalisation_mode, bool use_channel_frequency,
+      const std::string& element_response_model,
+      const std::string& beam_mode = "full");
 
   /**
    * @brief Static method to construct an everybeam::Options struct
@@ -83,15 +84,16 @@ class ATermConfig : public ATermBase {
    * @param settings ATermSettings
    * @param frequency_interpolation Interpolate between frequencies? Relevant
    * for MWA only.
-   * @param use_differential_beam Use differential beam?
+   * @param beam_normalisation_mode What type of normalisation will be applied?
    * @param use_channel_frequency Use channel frequency?
    * @param element_response_model Element response model
    * @return everybeam::Options
    */
   static everybeam::Options ConvertToEBOptions(
       const casacore::MeasurementSet& ms, const ATermSettings& settings,
-      bool frequency_interpolation, bool use_differential_beam,
-      bool use_channel_frequency, const std::string& element_response_model);
+      bool frequency_interpolation, const std::string& beam_normalisation_mode,
+      bool use_channel_frequency, const std::string& element_response_model,
+      const std::string& beam_mode = "full");
 
  private:
   const size_t n_antennas_;
