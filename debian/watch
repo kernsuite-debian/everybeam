@@ -1,0 +1,2 @@
+version=4
+https://git.astron.nl/RD/EveryBeam/-/tags?sort=updated_desc .*v(\d\S+)\.tar\.gz
