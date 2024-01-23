@@ -253,19 +253,23 @@ void SolTab::ReadAxes() {
 }
 
 std::string SolTab::GetName() const {
-  size_t len = H5Iget_name(getId(), nullptr, 0);
-  char buffer[len];
-  H5Iget_name(getId(), buffer, len + 1);
+  if (!isValid(getId())) {
+    return "<invalid>";
+  }
+  const ssize_t len = H5Iget_name(getId(), nullptr, 0);
+  if (len < 0) {
+    throw std::runtime_error("Error retrieving H5 Group name.");
+  }
+  std::string name(len + 1, '\0');
+  H5Iget_name(getId(), name.data(), len + 1);
   // Strip leading /
-  return buffer + 1;
+  return name.data() + 1;
 }
 
-std::vector<double> SolTab::GetValuesOrWeights(const std::string& val_or_weight,
-                                               const std::string& ant_name,
-                                               const std::vector<double>& times,
-                                               const std::vector<double>& freqs,
-                                               unsigned int pol,
-                                               unsigned int dir, bool nearest) {
+std::vector<double> SolTab::GetValuesOrWeights(
+    const std::string& val_or_weight, const std::string& ant_name,
+    const std::vector<double>& times, const std::vector<double>& freqs,
+    unsigned int pol, unsigned int dir, bool nearest) const {
   std::vector<double> res(times.size() * freqs.size());
 
   unsigned int start_time_slot = 0;
@@ -349,7 +353,7 @@ std::vector<double> SolTab::GetValuesOrWeights(
     const std::string& val_or_weight, const std::string& ant_name,
     unsigned int starttimeslot, unsigned int ntime, unsigned int timestep,
     unsigned int startfreq, unsigned int nfreq, unsigned int freqstep,
-    unsigned int pol, unsigned int dir) {
+    unsigned int pol, unsigned int dir) const {
   std::vector<double> res(ntime * nfreq);
   H5::DataSet val = openDataSet(val_or_weight);
 
@@ -479,12 +483,13 @@ void SolTab::SetAxisMeta(const std::string& meta_name,
   }
 }
 
-hsize_t SolTab::GetAntIndex(const std::string& ant_name) {
-  return GetNamedIndex(ant_map_, "ant", ant_name);
-}
+void SolTab::FillCache(std::vector<std::string>& list,
+                       std::map<std::string, hsize_t>& map,
+                       const std::string& table_name) const {
+  if (!list.empty()) return;
+  assert(map.empty());
+  map.clear();  // Just in case.
 
-void SolTab::FillCache(std::map<std::string, hsize_t>& cache,
-                       const std::string& table_name) {
   H5::DataSet dataset;
   H5::DataSpace dataspace;
   try {
@@ -503,31 +508,47 @@ void SolTab::FillCache(std::map<std::string, hsize_t>& cache,
   // TODO: check that DataType is String
   hsize_t str_len = dataset.getDataType().getSize();
 
-  char el_names[str_len * dims[0]];
-  dataset.read(el_names, H5::StrType(H5::PredType::C_S1, str_len));
+  // Add 1 to the vector length, since the loop below modifies that element
+  // in its last iteration.
+  std::vector<char> el_names(str_len * dims[0] + 1, '\0');
+  dataset.read(el_names.data(), H5::StrType(H5::PredType::C_S1, str_len));
 
+  // Store the names in 'list' in their original order, for GetStringAxis.
+  // Also, map the names to their original index in 'map', for GetAntIndex and
+  // GetDirIndex.
+  list.reserve(dims[0]);
   for (hsize_t el_num = 0; el_num < dims[0]; ++el_num) {
-    char el_name_cstr[str_len + 1];
-    std::copy(el_names + el_num * str_len, el_names + (el_num + 1) * str_len,
-              el_name_cstr);
-    el_name_cstr[str_len] = '\0';
-    cache[el_name_cstr] = el_num;
+    const size_t name_index = el_num * str_len;
+    const size_t next_index = name_index + str_len;
+    const char saved = el_names[next_index];
+    el_names[next_index] = '\0';
+    list.emplace_back(&el_names[name_index]);
+    map[list.back()] = el_num;
+    el_names[next_index] = saved;
   }
 }
 
-hsize_t SolTab::GetNamedIndex(std::map<std::string, hsize_t>& cache,
+hsize_t SolTab::GetNamedIndex(std::vector<std::string>& cache_list,
+                              std::map<std::string, hsize_t>& cache_map,
                               const std::string& table_name,
-                              const std::string& element_name) {
-  // Initialize ant_map_ or dir_map_ on first use
-  if (cache.empty()) {
-    FillCache(cache, table_name);
-  }
-  auto it = cache.find(element_name);
-  if (it == cache.end()) {
+                              const std::string& element_name) const {
+  // Initialize ant_list_+ant_map_ or dir_list_+dir_map_ on first use.
+  FillCache(cache_list, cache_map, table_name);
+
+  auto it = cache_map.find(element_name);
+  if (it == cache_map.end()) {
     throw std::runtime_error("SolTab has no element " + element_name + " in " +
                              table_name);
   }
   return it->second;
+}
+
+hsize_t SolTab::GetAntIndex(const std::string& ant_name) const {
+  return GetNamedIndex(ant_list_, ant_map_, "ant", ant_name);
+}
+
+hsize_t SolTab::GetDirIndex(const std::string& direction_name) const {
+  return GetNamedIndex(dir_list_, dir_map_, "dir", direction_name);
 }
 
 hsize_t SolTab::GetFreqIndex(double freq) const {
@@ -594,30 +615,18 @@ std::vector<double> SolTab::GetRealAxis(const std::string& axisname) const {
   return data;
 }
 
-std::vector<std::string> SolTab::GetStringAxis(const std::string& axis_name) {
-  std::map<std::string, hsize_t> cachemap;
-
+const std::vector<std::string>& SolTab::GetStringAxis(
+    const std::string& axis_name) const {
   if (axis_name == "dir") {
-    if (dir_map_.empty()) {
-      FillCache(dir_map_, "dir");
-    }
-    cachemap = dir_map_;
+    FillCache(dir_list_, dir_map_, "dir");
+    return dir_list_;
   } else if (axis_name == "ant") {
-    if (ant_map_.empty()) {
-      FillCache(ant_map_, "ant");
-    }
-    cachemap = ant_map_;
+    FillCache(ant_list_, ant_map_, "ant");
+    return ant_list_;
   } else {
     throw std::runtime_error(
         "Only string axes 'ant' and 'dir' supported for now.");
   }
-
-  // Get the keys of the cache map and put them in a std::vector
-  std::vector<std::string> res;
-  for (const auto& key : cachemap) {
-    res.push_back(key.first);
-  }
-  return res;
 }
 
 hsize_t SolTab::GetTimeIndex(double time) const {
@@ -637,10 +646,6 @@ hsize_t SolTab::GetTimeIndex(double time) const {
   throw std::runtime_error("Time " + std::to_string(time) + " not found in " +
                            GetName());
   return 0;
-}
-
-hsize_t SolTab::GetDirIndex(const std::string& direction_name) {
-  return GetNamedIndex(dir_map_, "dir", direction_name);
 }
 
 double SolTab::GetInterval(const std::string& axis_name, size_t start) const {

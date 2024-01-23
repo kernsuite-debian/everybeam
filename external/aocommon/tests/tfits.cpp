@@ -29,6 +29,7 @@ BOOST_AUTO_TEST_CASE(write_and_read) {
   BOOST_CHECK_EQUAL(reader.ImageHeight(), height);
   BOOST_CHECK_CLOSE(reader.PixelSizeX(), dl, 1e-8);
   BOOST_CHECK_CLOSE(reader.PixelSizeY(), dm, 1e-8);
+  BOOST_CHECK_EQUAL(reader.NImages(), 1);
   BOOST_CHECK_EQUAL(image[0], val);
   BOOST_CHECK_EQUAL_COLLECTIONS(image.begin(), image.end(),
                                 imageFromDisk.begin(), imageFromDisk.end());

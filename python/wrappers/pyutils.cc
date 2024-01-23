@@ -10,9 +10,11 @@
 #include "beammode.h"
 #include "beamnormalisationmode.h"
 #include "common/mathutils.h"
-#include "coords/coordutils.h"
+
+#include <aocommon/coordinatesystem.h>
 
 namespace py = pybind11;
+using aocommon::CoordinateSystem;
 using everybeam::BeamMode;
 using everybeam::BeamNormalisationMode;
 using everybeam::cart2thetaphi;
@@ -22,7 +24,6 @@ using everybeam::ParseBeamNormalisationMode;
 using everybeam::thetaphi2cart;
 using everybeam::vector2r_t;
 using everybeam::vector3r_t;
-using everybeam::coords::CoordinateSystem;
 
 namespace {
 // Convert pyarray of size 3 to vector3r_t
@@ -124,44 +125,18 @@ void init_utils(py::module& m) {
         double: Grid spacing in Dec direction [rad], where
         dm is the direction cosine of the delta declination.
        )pbdoc")
-      .def_readwrite("l_shift", &CoordinateSystem::phase_centre_dl,
+      .def_readwrite("l_shift", &CoordinateSystem::l_shift,
                      R"pbdoc(
         double: Shift in l from pointing direction to grid center [rad].
        )pbdoc")
-      .def_readwrite("m_shift", &CoordinateSystem::phase_centre_dm,
+      .def_readwrite("m_shift", &CoordinateSystem::m_shift,
                      R"pbdoc(
         double: Shift in m from pointing direction to grid center [rad].
        )pbdoc");
 
-  // Bindings for ElementResponseModel enum
-  py::enum_<ElementResponseModel>(m, "ElementResponseModel", py::arithmetic(),
-                                  "Element Response Model enumeration")
-      .value("hamaker", ElementResponseModel::kHamaker,
-             R"pbdoc(
-        Hamaker element response model
-       )pbdoc")
-      .value("hamaker_lba", ElementResponseModel::kHamakerLba,
-             R"pbdoc(
-        Hamaker LBA element response model
-       )pbdoc")
-      .value("lobes", ElementResponseModel::kLOBES,
-             R"pbdoc(
-        LOBEs element response model
-       )pbdoc")
-      .value("oskar_dipole", ElementResponseModel::kOSKARDipole,
-             R"pbdoc(
-        SKA dipole element response model
-       )pbdoc")
-      .value("skala40_spherical", ElementResponseModel::kOSKARSphericalWave,
-             R"pbdoc(
-        Use SKALA 4.0 element response model. Please note that this response model is somewhat misleadingly named
-        OSKAR spherical wave internally (ElementResponseModel::kOSKARSphericalWave). This will be refactored in the future.
-       )pbdoc")
-      .export_values();
-
   m.def("parse_beam_normalisation_mode", &ParseBeamNormalisationMode,
         R"pbdoc(
-        Parses a string containing a valid name of a beam normalisation mode 
+        Parses a string containing a valid name of a beam normalisation mode
         and returns the matching value of the BeamNormalisationMode enum.
 
         Raises a RuntimeError when no matching BeamNormalisationMode value is found.

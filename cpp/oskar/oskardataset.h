@@ -9,6 +9,8 @@
 
 #include <H5Cpp.h>
 
+#include <oskar_beam_utils.h>
+
 namespace everybeam {
 //! OSKAR dataset
 class Dataset {
@@ -22,18 +24,14 @@ class Dataset {
    */
   Dataset(H5::H5File& h5_file, const unsigned int freq);
 
-  // Get
   size_t GetNrElements() const { return nr_elements_; };
   size_t GetLMax() const { return l_max_; };
 
-  std::complex<double>* GetAlphaPtr(const unsigned int element);
+  const oskar::Double4C* GetAlphaPtr(const unsigned int element) const;
 
  private:
-  // Methods
-  size_t GetIndex(const unsigned int element) const;
-
-  // Members
-  std::vector<std::complex<double>> data_;
+  // Using the OSKAR Double4C type ensures correct alignment.
+  std::vector<oskar::Double4C> data_;
   size_t nr_elements_;
   size_t nr_coeffs_;
   size_t l_max_;

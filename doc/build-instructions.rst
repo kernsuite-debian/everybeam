@@ -3,9 +3,9 @@
 Build instructions
 ==================
 
-Dependencies:
-~~~~~~~~~~~~~
-EveryBeam needs a number of dependencies in order to successfully compile. On a clean (ubuntu 18.04) system,
+Dependencies
+~~~~~~~~~~~~
+EveryBeam needs a number of dependencies in order to successfully compile. On a clean (ubuntu 20.04) system,
 the dependencies can be installed with (see also the ``docker`` directory):
 
 General packages:
@@ -32,8 +32,8 @@ In order to be able to build the documentation with ``make doc``, ``sphinx`` and
 
 
 
-Quick installation guide:
-~~~~~~~~~~~~~~~~~~~~~~~~~
+Quick installation guide
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 ::
 
@@ -44,14 +44,15 @@ Quick installation guide:
     make install
 
 
-Installation options:
-~~~~~~~~~~~~~~~~~~~~~
+Installation options
+~~~~~~~~~~~~~~~~~~~~
 
 (Use :code:`ccmake` or :code:`cmake -i` to configure all options.)
 
 * :code:`BUILD_WITH_PYTHON`: build Python module 'everybeam' to use everybeam from Python
 * :code:`BUILD_TESTING`: compile tests when building EveryBeam
 * :code:`DOWNLOAD_LOBES`: download and install available LOBEs coefficients files (``OFF`` by default)
+* :code:`EVERYBEAM_DATADIR`: override the directory where EveryBeam searches for its data files; a relative path will be prefixed with the install prefix.
 
 All other build options serve development purposes only, and can/should be left at the default values by a regular user.
 

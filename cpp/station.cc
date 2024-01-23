@@ -1,6 +1,6 @@
 // Station.cc: Representation of the station beam former.
 //
-// Copyright (C) 2020 ASTRON (Netherlands Institute for Radio Astronomy)
+// Copyright (C) 2022 ASTRON (Netherlands Institute for Radio Astronomy)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "station.h"
@@ -17,20 +17,9 @@ Station::Station(const std::string& name, const vector3r_t& position,
       options_(options),
       phase_reference_(position),
       element_response_(ElementResponse::GetInstance(
-          options.element_response_model, name_, options_)) {
-  const vector3r_t ncp = {0.0, 0.0, 1.0};
-  ncp_.reset(new coords::ITRFDirection(ncp));
-  const vector3r_t ncppol0 = {1.0, 0.0, 0.0};
-  ncp_pol0_.reset(new coords::ITRFDirection(ncppol0));
-}
-
-void Station::SetResponseModel(const ElementResponseModel model) {
-  element_response_.set(ElementResponse::GetInstance(model, name_, options_));
-}
-
-void Station::SetResponse(std::shared_ptr<ElementResponse> element_response) {
-  element_response_.set(element_response);
-}
+          options.element_response_model, name_, options_)),
+      ncp_(vector3r_t{0.0, 0.0, 1.0}),
+      ncp_pol0_(vector3r_t{1.0, 0.0, 0.0}) {}
 
 const std::string& Station::GetName() const { return name_; }
 
@@ -63,12 +52,12 @@ void Station::SetAntenna(std::shared_ptr<Antenna> antenna) {
   // note that the Element was upcasted from an ElementHamaker into an Element
   // in BeamFormerLofarHBA/LBA::Clone()!- and Transform the Element with the
   // coordinate system of the HBA/LBA beam former.
-  if (auto beamformer_lofar =
-          std::dynamic_pointer_cast<BeamFormerLofar>(antenna)) {
-    antenna = beamformer_lofar->GetElement();
-    antenna->Transform(beamformer_lofar->coordinate_system_);
+  if (auto beamformer_lofar = dynamic_cast<BeamFormerLofar*>(antenna.get())) {
+    element_ = beamformer_lofar->GetElement();
+    element_->Transform(beamformer_lofar->coordinate_system_);
+  } else {
+    element_ = std::dynamic_pointer_cast<Element>(antenna);
   }
-  element_ = std::dynamic_pointer_cast<Element>(antenna);
 }
 
 // ========================================================
@@ -87,8 +76,10 @@ aocommon::MC2x2 Station::ComputeElementResponse(real_t time, real_t freq,
     options.north = north;
   }
 
-  return is_local ? element_->LocalResponse(time, freq, direction, id, options)
-                  : element_->ResponseID(time, freq, direction, id, options);
+  return is_local ? element_->LocalResponse(*element_response_, time, freq,
+                                            direction, id, options)
+                  : element_->ResponseID(*element_response_, time, freq,
+                                         direction, id, options);
 }
 
 aocommon::MC2x2 Station::ComputeElementResponse(real_t time, real_t freq,
@@ -118,7 +109,7 @@ aocommon::MC2x2 Station::Response(real_t time, real_t freq,
     options.north = north;
   }
 
-  return antenna_->Response(time, freq, direction, options);
+  return antenna_->Response(*element_response_, time, freq, direction, options);
 }
 
 aocommon::MC2x2Diag Station::ArrayFactor(real_t time, real_t freq,
@@ -133,6 +124,6 @@ aocommon::MC2x2Diag Station::ArrayFactor(real_t time, real_t freq,
   return antenna_->ArrayFactor(time, freq, direction, options);
 }
 
-vector3r_t Station::NCP(real_t time) const { return ncp_->at(time); }
+vector3r_t Station::NCP(real_t time) const { return ncp_.at(time); }
 
-vector3r_t Station::NCPPol0(real_t time) const { return ncp_pol0_->at(time); }
+vector3r_t Station::NCPPol0(real_t time) const { return ncp_pol0_.at(time); }

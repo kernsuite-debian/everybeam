@@ -4,10 +4,12 @@ This package can be used to compute the beam response for a variety of
 radio telescopes, i.e.:
 
 * LOFAR
-* OSKAR
+* SKA/OSKAR
+* ATCA
+* GMRT
+* MeerKAT
 * MWA
 * VLA
-* ATCA
 
 This package also provides an abstract interface to a selection of beam responses for apperture arrays (LOFAR/OSKAR), and beamformed versions thereof. Currently implemented are:
 
@@ -22,7 +24,7 @@ EveryBeam is licensed under the terms of the GNU GPL3 license.
 
 ## Documentation and Installation Instructions
 
-[Documentation](https://www.astron.nl/citt/EveryBeam/) along with [installation instructions](https://www.astron.nl/citt/EveryBeam/build-instructions.html) can be found at the provided links.
+[Documentation](https://everybeam.readthedocs.io) along with [installation instructions](https://everybeam.readthedocs.io/en/latest/build-instructions.html) can be found at the provided links.
 
 ## Usage with DP3
 

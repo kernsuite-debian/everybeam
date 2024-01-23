@@ -11,7 +11,11 @@
 namespace schaapcommon {
 namespace fitters {
 
-enum class SpectralFittingMode { NoFitting, Polynomial, LogPolynomial };
+enum class SpectralFittingMode {
+  NoFitting,    /*!< No fitting, each channel gets a separate solution */
+  Polynomial,   /*!< Use polynomial for spectral fitting. */
+  LogPolynomial /*!< Use double log polynomial for spectral fitting. */
+};
 
 class SpectralFitter {
  public:

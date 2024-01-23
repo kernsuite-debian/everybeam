@@ -1,10 +1,6 @@
-# Files
-#
-# Directories
 .vscode/
 build/
 builds/
+dist/
+venv/
 __pycache__/
-cpp/test/thamaker_tmp.cc
-cpp/test/tlobes_tmp.cc
-download_lofar_lobes_ms.sh

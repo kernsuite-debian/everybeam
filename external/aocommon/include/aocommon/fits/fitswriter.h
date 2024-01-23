@@ -35,8 +35,8 @@ class FitsWriter : public FitsBase {
         _phaseCentreDec(0.0),
         _pixelSizeX(0.0),
         _pixelSizeY(0.0),
-        _phaseCentreDL(0.0),
-        _phaseCentreDM(0.0),
+        _l_shift(0.0),
+        _m_shift(0.0),
         _frequency(0.0),
         _bandwidth(0.0),
         _dateObs(0.0),
@@ -61,8 +61,8 @@ class FitsWriter : public FitsBase {
         _phaseCentreDec(0.0),
         _pixelSizeX(0.0),
         _pixelSizeY(0.0),
-        _phaseCentreDL(0.0),
-        _phaseCentreDM(0.0),
+        _l_shift(0.0),
+        _m_shift(0.0),
         _frequency(0.0),
         _bandwidth(0.0),
         _dateObs(0.0),
@@ -222,8 +222,8 @@ class FitsWriter : public FitsBase {
       _beamMinorAxisRad = reader.BeamMinorAxisRad();
       _beamPositionAngle = reader.BeamPositionAngle();
     }
-    _phaseCentreDL = reader.PhaseCentreDL();
-    _phaseCentreDM = reader.PhaseCentreDM();
+    _l_shift = reader.LShift();
+    _m_shift = reader.MShift();
     _telescopeName = reader.TelescopeName();
     _observer = reader.Observer();
     _objectName = reader.ObjectName();
@@ -278,13 +278,13 @@ class FitsWriter : public FitsBase {
     _extraNumKeywords = keywords;
   }
   void SetPhaseCentreShift(double dl, double dm) {
-    _phaseCentreDL = dl;
-    _phaseCentreDM = dm;
+    _l_shift = dl;
+    _m_shift = dm;
   }
   size_t Width() const { return _width; }
   size_t Height() const { return _height; }
-  double PhaseCentreDL() const { return _phaseCentreDL; }
-  double PhaseCentreDM() const { return _phaseCentreDM; }
+  double LShift() const { return _l_shift; }
+  double MShift() const { return _m_shift; }
 
   void CopyDoubleKeywordIfExists(FitsReader& reader, const char* keywordName) {
     double v;
@@ -334,7 +334,7 @@ class FitsWriter : public FitsBase {
   }
   std::size_t _width, _height;
   double _phaseCentreRA, _phaseCentreDec, _pixelSizeX, _pixelSizeY;
-  double _phaseCentreDL, _phaseCentreDM;
+  double _l_shift, _m_shift;
   double _frequency, _bandwidth;
   double _dateObs;
   bool _hasBeam;
@@ -443,6 +443,13 @@ class FitsWriter : public FitsBase {
 
     fits_write_key(fptr, TDOUBLE, "EQUINOX", (void*)&equinox, "J2000", &status);
     checkStatus(status, filename);
+    // LONPOLE is set to 180 to prevent an underspecified WCS when the
+    // observation is centered on the NCP. Without it, some tools interpret the
+    // image up-side-down.
+    double lonpole = 180.0;
+    fits_write_key(fptr, TDOUBLE, "LONPOLE", reinterpret_cast<void*>(&lonpole),
+                   "", &status);
+    checkStatus(status, filename);
     fits_write_key(fptr, TSTRING, "BTYPE", (void*)"Intensity", "", &status);
     checkStatus(status, filename);
     if (!_telescopeName.empty()) {
@@ -465,14 +472,12 @@ class FitsWriter : public FitsBase {
     checkStatus(status, filename);
     double phaseCentreRADeg = (_phaseCentreRA / M_PI) * 180.0,
            phaseCentreDecDeg = (_phaseCentreDec / M_PI) * 180.0;
-    double centrePixelX =
-               _pixelSizeX != 0.0
-                   ? ((_width / 2.0) + 1.0 + _phaseCentreDL / _pixelSizeX)
-                   : (_width / 2.0) + 1.0,
-           centrePixelY =
-               _pixelSizeY != 0.0
-                   ? ((_height / 2.0) + 1.0 - _phaseCentreDM / _pixelSizeY)
-                   : (_height / 2.0) + 1.0;
+    double centrePixelX = _pixelSizeX != 0.0
+                              ? ((_width / 2.0) + 1.0 + _l_shift / _pixelSizeX)
+                              : (_width / 2.0) + 1.0,
+           centrePixelY = _pixelSizeY != 0.0
+                              ? ((_height / 2.0) + 1.0 - _m_shift / _pixelSizeY)
+                              : (_height / 2.0) + 1.0;
     if (_isUV) {
       double deltX, deltY;
       if (_pixelSizeX == 0.0 || _pixelSizeY == 0.0) {

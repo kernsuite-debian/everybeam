@@ -21,6 +21,7 @@ enum TelescopeType {
   kATCATelescope,
   kGMRTTelescope,
   kLofarTelescope,
+  kMeerKATTelescope,
   kOSKARTelescope,
   kMWATelescope,
   kSkaMidTelescope,
@@ -33,7 +34,8 @@ enum TelescopeType {
  * @param ms
  * @return TelescopeType
  */
-TelescopeType GetTelescopeType(const casacore::MeasurementSet& ms);
+[[gnu::visibility("default")]] TelescopeType GetTelescopeType(
+    const casacore::MeasurementSet& ms);
 
 /**
  * @brief Load telescope given a measurement set. Telescope is determined
@@ -41,10 +43,10 @@ TelescopeType GetTelescopeType(const casacore::MeasurementSet& ms);
  *
  * @param ms MeasurementSet
  * @param options Options
- * @return std::unique_ptr<Telescope> Unique pointer to Telescope object
+ * @return Unique pointer to Telescope object
  */
-std::unique_ptr<telescope::Telescope> Load(const casacore::MeasurementSet& ms,
-                                           const Options& options);
+[[gnu::visibility("default")]] std::unique_ptr<telescope::Telescope> Load(
+    const casacore::MeasurementSet& ms, const Options& options);
 
 /**
  * @brief Load telescope given a path to a measurment set. Telescope is
@@ -52,10 +54,10 @@ std::unique_ptr<telescope::Telescope> Load(const casacore::MeasurementSet& ms,
  *
  * @param ms MeasurementSet
  * @param options Options
- * @return td::unique_ptr<Telescope> Unique pointer to Telescope object
+ * @return Unique pointer to Telescope object
  */
-std::unique_ptr<telescope::Telescope> Load(const std::string& ms_name,
-                                           const Options& options);
+[[gnu::visibility("default")]] std::unique_ptr<telescope::Telescope> Load(
+    const std::string& ms_name, const Options& options);
 
 /**
  * @brief Convert a string to an ElementResponseModel enum

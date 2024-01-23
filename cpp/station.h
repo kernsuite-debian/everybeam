@@ -1,6 +1,6 @@
 // station.h: Representation of the station beam former.
 //
-// Copyright (C) 2020 ASTRON (Netherlands Institute for Radio Astronomy)
+// Copyright (C) 2022 ASTRON (Netherlands Institute for Radio Astronomy)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #ifndef EVERYBEAM_STATION_H
@@ -24,10 +24,8 @@
 
 namespace everybeam {
 
-class Station {
+class [[gnu::visibility("default")]] Station {
  public:
-  typedef std::shared_ptr<const Station> ConstPtr;
-
   /*!
    *  \brief Construct a new Station instance.
    *
@@ -36,8 +34,6 @@ class Station {
    */
   Station(const std::string& name, const vector3r_t& position,
           const Options& options = Options());
-
-  void SetResponse(std::shared_ptr<ElementResponse> element_response);
 
   //! Return the name of the station.
   const std::string& GetName() const;
@@ -146,10 +142,9 @@ class Station {
    *  point \e from the ground \e towards the direction from which the plane
    *  wave arrives.
    */
-  aocommon::MC2x2Diag ArrayFactor(real_t time, real_t freq,
-                                  const vector3r_t& direction, real_t freq0,
-                                  const vector3r_t& station0,
-                                  const vector3r_t& tile0) const;
+  aocommon::MC2x2Diag ArrayFactor(
+      real_t time, real_t freq, const vector3r_t& direction, real_t freq0,
+      const vector3r_t& station0, const vector3r_t& tile0) const;
 
   /*!
    *  \name Convenience member functions
@@ -255,15 +250,17 @@ class Station {
    *  real_t freq0, const vector3r_t &station0, const vector3r_t &tile0) const
    */
   template <typename T, typename U>
-  void ArrayFactor(unsigned int count, real_t time, T freq,
-                   const vector3r_t& direction, T freq0,
-                   const vector3r_t& station0, const vector3r_t& tile0,
-                   U buffer) const;
+  void ArrayFactor(
+      unsigned int count, real_t time, T freq, const vector3r_t& direction,
+      T freq0, const vector3r_t& station0, const vector3r_t& tile0, U buffer)
+      const;
 
   // @}
 
   //! Returns a pointer to the ElementResponse class
-  const ElementResponse::Ptr GetElementResponse() { return element_response_; }
+  std::shared_ptr<const ElementResponse> GetElementResponse() const {
+    return element_response_;
+  }
 
   /**
    * @brief Compute the Jones matrix for the element response
@@ -301,7 +298,7 @@ class Station {
   //! Specialized implementation of response function.
   aocommon::MC2x2 Response(real_t time, real_t freq,
                            const vector3r_t& direction) const {
-    return antenna_->Response(time, freq, direction);
+    return antenna_->Response(*element_response_, time, freq, direction);
   }
 
   //! Set antenna attribute, usually a BeamFormer, but can also be an Element
@@ -310,8 +307,6 @@ class Station {
   std::shared_ptr<Antenna> GetAntenna() const { return antenna_; }
 
  private:
-  void SetResponseModel(const ElementResponseModel model);
-
   vector3r_t NCP(real_t time) const;
   vector3r_t NCPPol0(real_t time) const;
 
@@ -319,12 +314,13 @@ class Station {
   vector3r_t position_;
   Options options_;
   vector3r_t phase_reference_;
-  ElementResponse::Ptr element_response_;
+  std::shared_ptr<const ElementResponse> element_response_;
+  // element_ either refers to antenna_ or an Element inside antenna_.
+  // Besides Station, no one has (shared) ownership of antenna_.
   std::shared_ptr<Element> element_;
-
   std::shared_ptr<Antenna> antenna_;
 
-  coords::ITRFDirection::Ptr ncp_;
+  coords::ITRFDirection ncp_;
   /** Reference direction for NCP observations.
    *
    * NCP pol0 is the direction used as reference in the coordinate system
@@ -335,7 +331,7 @@ class Station {
    *
    * Added by Maaijke Mevius, December 2018.
    */
-  coords::ITRFDirection::Ptr ncp_pol0_;
+  coords::ITRFDirection ncp_pol0_;
 };
 
 // ------------------------------------------------------------------------- //

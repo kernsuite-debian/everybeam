@@ -1,14 +1,18 @@
-// Copyright (C) 2020 ASTRON (Netherlands Institute for Radio Astronomy)
+// Copyright (C) 2022 ASTRON (Netherlands Institute for Radio Astronomy)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "oskarelementresponse.h"
-#include "config.h"
+
 #include <iostream>
+
+#include "config.h"
+
+#include "oskardatafile.h"
 
 #include <oskar_beam_utils.h>
 
-using oskar::beam_utils::oskar_evaluate_dipole_pattern_double;
-using oskar::beam_utils::oskar_evaluate_spherical_wave_sum_double;
+using oskar::beam_utils::evaluate_dipole_pattern_double;
+using oskar::beam_utils::evaluate_spherical_wave_sum_double;
 
 namespace everybeam {
 
@@ -19,22 +23,24 @@ aocommon::MC2x2 OSKARElementResponseDipole::Response(double freq, double theta,
 
   double phi_x = phi;
   double phi_y = phi + M_PI_2;
-  oskar_evaluate_dipole_pattern_double(1, &theta, &phi_x, freq, dipole_length_m,
-                                       response.Data());
-  oskar_evaluate_dipole_pattern_double(1, &theta, &phi_y, freq, dipole_length_m,
-                                       response.Data() + 2);
+  evaluate_dipole_pattern_double(1, &theta, &phi_x, freq, dipole_length_m,
+                                 response.Data());
+  evaluate_dipole_pattern_double(1, &theta, &phi_y, freq, dipole_length_m,
+                                 response.Data() + 2);
   return response;
 }
 
-OSKARElementResponseSphericalWave::OSKARElementResponseSphericalWave() {
-  std::string path = GetPath("oskar.h5");
-  datafile_.reset(new Datafile(path));
+OSKARElementResponseSphericalWave::OSKARElementResponseSphericalWave()
+    : datafile_(cached_datafile_.lock()) {
+  if (!datafile_) {
+    datafile_ = std::make_shared<Datafile>(GetPath("oskar.h5"));
+    cached_datafile_ = datafile_;
+  }
 }
 
 OSKARElementResponseSphericalWave::OSKARElementResponseSphericalWave(
-    const std::string& path) {
-  datafile_.reset(new Datafile(path));
-}
+    const std::string& filename)
+    : datafile_(std::make_shared<Datafile>(filename)) {}
 
 aocommon::MC2x2 OSKARElementResponseSphericalWave::Response(
     [[maybe_unused]] double freq, [[maybe_unused]] double theta,
@@ -52,12 +58,12 @@ aocommon::MC2x2 OSKARElementResponseSphericalWave::Response(int element_id,
                                                             double freq,
                                                             double theta,
                                                             double phi) const {
-  aocommon::MC2x2 response = aocommon::MC2x2::Zero();
+  oskar::Double4C response{0.0, 0.0, 0.0, 0.0};
 
-  auto dataset = datafile_->Get(freq);
-  auto l_max = dataset->GetLMax();
+  const Dataset& dataset = datafile_->Get(freq);
+  const size_t l_max = dataset.GetLMax();
 
-  std::complex<double>* alpha_ptr = dataset->GetAlphaPtr(element_id);
+  const oskar::Double4C* alpha_ptr = dataset.GetAlphaPtr(element_id);
 
   double phi_x = phi;
   double phi_y = phi;
@@ -69,17 +75,11 @@ aocommon::MC2x2 OSKARElementResponseSphericalWave::Response(int element_id,
   // That case needs to be detected when the coefficients are read,
   // and here phi_y needs to be set accordingly.
 
-  oskar_evaluate_spherical_wave_sum_double(theta, phi_x, phi_y, l_max,
-                                           alpha_ptr, response.Data());
-  return response;
+  evaluate_spherical_wave_sum_double(theta, phi_x, phi_y, l_max, alpha_ptr,
+                                     &response);
+  return aocommon::MC2x2(response.a, response.b, response.c, response.d);
 }
 
-std::string OSKARElementResponseSphericalWave::GetPath(
-    const char* filename) const {
-  std::stringstream ss;
-  ss << EVERYBEAM_DATA_DIR << "/";
-  ss << filename;
-  return ss.str();
-}
+std::weak_ptr<Datafile> OSKARElementResponseSphericalWave::cached_datafile_;
 
 }  // namespace everybeam

@@ -8,16 +8,15 @@
 #include "../options.h"
 #include "../griddedresponse/mwagrid.h"
 #include "../pointresponse/mwapoint.h"
-#include "../../external/npy.hpp"
 #include "../telescope/mwa.h"
 
 #include "config.h"
 #include <complex>
 #include <cmath>
 
+using aocommon::CoordinateSystem;
 using everybeam::Load;
 using everybeam::Options;
-using everybeam::coords::CoordinateSystem;
 using everybeam::griddedresponse::GriddedResponse;
 using everybeam::griddedresponse::MWAGrid;
 using everybeam::pointresponse::MWAPoint;
@@ -49,15 +48,15 @@ BOOST_AUTO_TEST_CASE(load_mwa) {
   std::size_t width(16), height(16);
   double ra(2.18166148), dec(-0.74612826), dl(1. * M_PI / 180.),
       dm(1. * M_PI / 180.), shift_l(0.), shift_m(0.);
-  CoordinateSystem coord_system = {.width = width,
-                                   .height = height,
-                                   .ra = ra,
-                                   .dec = dec,
-                                   .dl = dl,
-                                   .dm = dm,
-                                   .phase_centre_dl = shift_l,
-                                   .phase_centre_dm = shift_m};
-
+  CoordinateSystem coord_system;
+  coord_system.width = width;
+  coord_system.height = height;
+  coord_system.ra = ra;
+  coord_system.dec = dec;
+  coord_system.dl = dl;
+  coord_system.dm = dm;
+  coord_system.l_shift = shift_l;
+  coord_system.m_shift = shift_m;
   std::unique_ptr<GriddedResponse> grid_response =
       telescope->GetGriddedResponse(coord_system);
   BOOST_CHECK(nullptr != dynamic_cast<MWAGrid*>(grid_response.get()));
@@ -116,28 +115,24 @@ BOOST_AUTO_TEST_CASE(load_mwa) {
   BOOST_CHECK(nullptr != dynamic_cast<MWAPoint*>(point_response.get()));
   BOOST_CHECK_EQUAL(point_response->HasTimeUpdate(), true);
   // Use ResponseAllStations (should be a repetitive call to Response)
-  std::complex<float>
-      point_response_buffer[point_response->GetAllStationsBufferSize()];
-  point_response->ResponseAllStations(beam_mode, point_response_buffer,
+  std::vector<std::complex<float>> point_response_buffer(
+      point_response->GetAllStationsBufferSize());
+  point_response->ResponseAllStations(beam_mode, point_response_buffer.data(),
                                       coord_system.ra, coord_system.dec,
                                       frequency, 0);
   BOOST_CHECK_EQUAL(point_response->HasTimeUpdate(), false);
 
-  BOOST_CHECK_EQUAL_COLLECTIONS(point_response_buffer,
-                                point_response_buffer + 4,
+  BOOST_CHECK_EQUAL_COLLECTIONS(point_response_buffer.begin(),
+                                point_response_buffer.begin() + 4,
                                 antenna_buffer.begin() + offset_88,
                                 antenna_buffer.begin() + offset_88 + 4);
   // Check if point response equal for all stations
   for (size_t i = 0; i < telescope->GetNrStations(); ++i) {
-    BOOST_CHECK_EQUAL_COLLECTIONS(
-        point_response_buffer + i * 4, point_response_buffer + 4 * (i + 1),
-        point_response_buffer, point_response_buffer + 4);
+    BOOST_CHECK_EQUAL_COLLECTIONS(point_response_buffer.begin() + i * 4,
+                                  point_response_buffer.begin() + i * 4 + 4,
+                                  point_response_buffer.begin(),
+                                  point_response_buffer.begin() + 4);
   }
-
-  // Print to np array
-  const long unsigned leshape[] = {(long unsigned int)width, height, 2, 2};
-  npy::SaveArrayAsNumpy("mwa_station_responses.npy", false, 4, leshape,
-                        antenna_buffer);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

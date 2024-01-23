@@ -251,7 +251,7 @@ BOOST_FIXTURE_TEST_CASE(axes, H5Fixture) {
   BOOST_CHECK_CLOSE(val2[1], 23., 1e-8);
   BOOST_CHECK_CLOSE(soltab.GetTimeInterval(), 2., 1e-8);
 
-  vector<string> antennas = soltab.GetStringAxis("ant");
+  const std::vector<std::string>& antennas = soltab.GetStringAxis("ant");
   BOOST_CHECK_EQUAL(antennas.size(), size_t{3});
   BOOST_CHECK_EQUAL(antennas[0], "Antenna1");
   BOOST_CHECK_EQUAL(antennas[1], "Antenna12");

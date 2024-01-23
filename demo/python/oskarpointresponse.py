@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 # Copyright (C) 2021 ASTRON (Netherlands Institute for Radio Astronomy)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -10,7 +11,7 @@ bindings can be used to compute beam responses.
 
 Script requires an OSKAR Measurement Set in order to run.
 A minimal OSKAR MSet can be downloaded here:
-https://www.astron.nl/citt/EveryBeam/OSKAR-single-timeslot.tar.bz2
+https://support.astron.nl/software/ci_data/EveryBeam/OSKAR-single-timeslot.tar.bz2
 """
 
 # Set path to (OSKAR) MS
@@ -51,13 +52,17 @@ np.testing.assert_allclose(
 
 # Just a rather arbitrarily chosen delay direction
 delay_dir_itrf = dir_itrf + np.array([-0.1, 0.5, 0.025])
-array_factor = telescope.array_factor(time, station_id, freq, dir_itrf, delay_dir_itrf)
+array_factor = telescope.array_factor(
+    time, station_id, freq, dir_itrf, delay_dir_itrf
+)
 
 # Element beam for station 0
 element_response = telescope.element_response(time, station_id, freq, dir_itrf)
 
 # Full beam for station 0
-response = telescope.station_response(time, station_id, freq, dir_itrf, delay_dir_itrf)
+response = telescope.station_response(
+    time, station_id, freq, dir_itrf, delay_dir_itrf
+)
 
 # Full beam should match product of array_factor and element_response
 np.testing.assert_allclose(

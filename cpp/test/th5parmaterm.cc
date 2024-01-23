@@ -5,7 +5,6 @@
 
 #include "config.h"
 #include "../aterms/h5parmaterm.h"
-#include "../coords/coordutils.h"
 
 #include <aocommon/uvector.h>
 #include <aocommon/imagecoordinates.h>
@@ -13,9 +12,9 @@
 #include <complex>
 #include <math.h>
 
+using aocommon::CoordinateSystem;
 using everybeam::aterms::H5ParmATerm;
 using everybeam::aterms::LagrangePolynomial;
-using everybeam::coords::CoordinateSystem;
 using schaapcommon::h5parm::H5Parm;
 
 std::string h5parm_mock = MOCK_H5PARM_PATH;

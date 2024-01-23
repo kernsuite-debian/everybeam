@@ -26,7 +26,7 @@ class SolTabMock : public SolTab {
                                          const std::vector<double>& times,
                                          const std::vector<double>& freqs,
                                          unsigned int pol, unsigned int dir,
-                                         bool nearest) override {
+                                         bool nearest) const override {
     ++called;
     auto res = std::vector<double>(kNAnts, 200.);
 
@@ -46,7 +46,7 @@ class SolTabMock : public SolTab {
     return res;
   }
 
-  int called;
+  mutable int called;
 };
 
 JonesParameters PrepareJonesParameters(JonesParameters::CorrectType ct,

@@ -7,17 +7,15 @@ find_package(
   COMPONENTS unit_test_framework
   REQUIRED)
 
-if(DOWNLOAD_LOBES)
-  add_definitions(-DDOWNLOAD_LOBES)
-endif()
-
 # Set cache values if not specified
 set(MOCK_MS
     LOFAR_HBA_MOCK
     LOFAR_LBA_MOCK
     AARTFAAC_LBA_MOCK
     AARTFAAC_6_LBA_MOCK
+    GMRT_MOCK
     OSKAR_MOCK
+    SCREEN_FITTING
     SKA_MID_MOCK
     VLA_MOCK
     MWA_MOCK)
@@ -33,6 +31,12 @@ set(MWA_COEFF_PATH
 set(MOCK_H5PARM_PATH
     ${DATA_DIR}/MOCK_H5PARM.h5
     CACHE PATH "")
+set(H5_SOLUTIONS_PATH
+    ${DATA_DIR}/solutions.h5
+    CACHE PATH "")
+set(KL_SCREEN_PATH
+    ${DATA_DIR}/kl_screen_0.fits
+    CACHE PATH "")
 set(LOBES_COEFF_PATH
     ${CMAKE_BINARY_DIR}/coeffs/lobes
     CACHE PATH "")
@@ -40,16 +44,24 @@ set(LOBES_COEFF_PATH
 #------------------------------------------------------------------------------
 set(TEST_FILENAMES
     runtests.cc
+    tatermconfig.cc
+    telementresponsefixeddirection.cc
+    tgmrt.cc
+    tgriddedresponse.cc
     tlofar_hba.cc
     tlofar_lba.cc
     tlofar_aartfaac.cc
-    toskar.cc
     tmwa.cc
+    toskar.cc
     tphasedarraypoint.cc
     tskamid.cc
     tstation.cc
     tvla.cc
     tcache.cc
+    tklfittingaterm.cc
+    tfourierfittingaterm.cc
+    tfourierfitter.cc
+    tklfitter.cc
     th5parmaterm.cc)
 
 # Add boost dynamic link flag for all test files.
@@ -59,39 +71,50 @@ set(TEST_FILENAMES
 set_source_files_properties(${TEST_FILENAMES} PROPERTIES COMPILE_DEFINITIONS
                                                          "BOOST_TEST_DYN_LINK")
 
-ExternalProject_Add(
-  download_mock_aartfaac_6_lba
-  EXCLUDE_FROM_ALL TRUE
-  URL https://www.astron.nl/citt/ci_data/EveryBeam/AARTFAAC_6_LBA_MOCK.ms.tar.gz
-  URL_HASH
-    SHA256=8d7f93ce089b3a29c4d0ee8b367d27a821175d0626793b16be1643ee9bcdc6a5
-  SOURCE_DIR ${DATA_DIR}/AARTFAAC_6_LBA_MOCK.ms
-  CONFIGURE_COMMAND ""
-  BUILD_COMMAND ""
-  INSTALL_COMMAND "")
-
 add_custom_target(
   download_mocks
   WORKING_DIRECTORY ${DATA_DIR}
-  COMMAND ${CMAKE_SOURCE_DIR}/scripts/download_lofar_hba_ms.sh
-  COMMAND ${CMAKE_SOURCE_DIR}/scripts/download_lofar_lba_ms.sh
-  COMMAND ${CMAKE_SOURCE_DIR}/scripts/download_aartfaac_lba_ms.sh
-  COMMAND ${CMAKE_SOURCE_DIR}/scripts/download_oskar_ms.sh
-  COMMAND ${CMAKE_SOURCE_DIR}/scripts/download_ska_mid_ms.sh
-  COMMAND ${CMAKE_SOURCE_DIR}/scripts/download_vla_ms.sh
-  COMMAND ${CMAKE_SOURCE_DIR}/scripts/download_mwa_ms.sh
+  COMMAND ${CMAKE_SOURCE_DIR}/scripts/download_ms.sh lba.MS.tar.bz2
+          LOFAR_LBA_MOCK.ms
+  COMMAND ${CMAKE_SOURCE_DIR}/scripts/download_ms.sh
+          L258627-one-timestep.tar.bz2 LOFAR_HBA_MOCK.ms
+  COMMAND ${CMAKE_SOURCE_DIR}/scripts/download_ms.sh aartfaac.MS.tgz
+          AARTFAAC_LBA_MOCK.ms
+  COMMAND ${CMAKE_SOURCE_DIR}/scripts/download_ms.sh
+          AARTFAAC_6_LBA_MOCK.ms.tar.gz AARTFAAC_6_LBA_MOCK.ms
+  COMMAND ${CMAKE_SOURCE_DIR}/scripts/download_ms.sh GMRT_MOCK.tar.bz2
+          GMRT_MOCK.ms
+  COMMAND ${CMAKE_SOURCE_DIR}/scripts/download_ms.sh
+          OSKAR-single-timeslot.tar.bz2 OSKAR_MOCK.ms
+  COMMAND ${CMAKE_SOURCE_DIR}/scripts/download_ms.sh
+          SKA_MID_SIM-1channel-1timestep.tar.bz2 SKA_MID_MOCK.ms
+  COMMAND ${CMAKE_SOURCE_DIR}/scripts/download_ms.sh MWA-single-timeslot.tar.bz2
+          MWA_MOCK.ms
+  COMMAND ${CMAKE_SOURCE_DIR}/scripts/download_ms.sh small-vla-set.tar.bz2
+          VLA_MOCK.ms
+  COMMAND ${CMAKE_SOURCE_DIR}/scripts/download_ms.sh screentest_ms.tar.gz
+          SCREEN_FITTING.ms
+  COMMAND ${CMAKE_SOURCE_DIR}/scripts/download_h5_solutions.sh
   COMMAND ${CMAKE_SOURCE_DIR}/scripts/download_mwa_coeff.sh
   COMMAND ${CMAKE_SOURCE_DIR}/scripts/download_mock_h5parm.sh
-  DEPENDS download_mock_aartfaac_6_lba)
+  COMMAND ${CMAKE_SOURCE_DIR}/scripts/download_kl_fits_screen.sh)
 add_test(NAME download_mocks
          COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target
                  download_mocks)
 set_tests_properties(download_mocks PROPERTIES FIXTURES_SETUP mocks)
 
 add_executable(unittests ${TEST_FILENAMES})
-target_link_libraries(unittests everybeam ${Boost_LIBRARIES} schaapcommon)
+target_link_libraries(
+  unittests
+  everybeam
+  ${Boost_LIBRARIES}
+  schaapcommon
+  xtensor
+  xtl
+  xtensor-fftw)
+
 # Required to get the config.h header
-target_include_directories(unittests PRIVATE "${CMAKE_BINARY_DIR}")
+target_include_directories(unittests PRIVATE ${CMAKE_BINARY_DIR})
 
 # Add test for automatically (re)building unittests if needed.
 add_test(NAME buildunittests COMMAND ${CMAKE_COMMAND} --build

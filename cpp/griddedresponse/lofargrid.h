@@ -7,7 +7,6 @@
 #define EVERYBEAM_GRIDDEDRESPONSE_LOFARGRID_H_
 
 #include "phasedarraygrid.h"
-#include "../telescope/lofar.h"
 
 namespace everybeam {
 namespace griddedresponse {
@@ -25,7 +24,7 @@ class LOFARGrid final : public PhasedArrayGrid {
    * @param coordinate_system CoordinateSystem struct
    */
   LOFARGrid(const telescope::Telescope* telescope_ptr,
-            const coords::CoordinateSystem& coordinate_system)
+            const aocommon::CoordinateSystem& coordinate_system)
       : PhasedArrayGrid(telescope_ptr, coordinate_system){};
 };
 }  // namespace griddedresponse

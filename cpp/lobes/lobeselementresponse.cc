@@ -1,46 +1,43 @@
-// Copyright (C) 2020 ASTRON (Netherlands Institute for Radio Astronomy)
+// Copyright (C) 2022 ASTRON (Netherlands Institute for Radio Astronomy)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include <charconv>
 #include <cmath>
+#include <complex>
+#include <filesystem>
+#include <map>
+#include <optional>
+#include <string_view>
+
+#include <aocommon/throwruntimeerror.h>
+#include <boost/algorithm/string/predicate.hpp>
+#include <H5Cpp.h>
+
+#include "../common/mathutils.h"
+#include "../common/sphericalharmonics.h"
 
 #include "config.h"
 #include "lobeselementresponse.h"
-
-#include "../common/sphericalharmonics.h"
-
-#include <aocommon/throwruntimeerror.h>
-
-#include <H5Cpp.h>
-
-#include <boost/algorithm/string/predicate.hpp>
-#include <boost/filesystem.hpp>
-#include <boost/utility/string_view.hpp>
-#include <boost/optional.hpp>
-
-#if __cplusplus > 201402L
-#include <charconv>
-#endif
-#include <complex>
-#include <map>
+#include "lobeselementresponsefixeddirection.h"
 
 // There are two main modi for the AARTFAAC telescope, AARTFAAC-6 and
 // AARTFAAC-12. To properly use AARTFAAC in LOBEs mode the coefficients of all
 // stations need to be available. At the moment of writing only a partial set
 // is available. This means only AARTFAAC-6 is tested.
-static const std::array<boost::string_view, 12> kAartfaacStationNames{
+static const std::array<std::string_view, 12> kAartfaacStationNames{
     // Available
     "CS002LBA", "CS003LBA", "CS004LBA", "CS005LBA", "CS006LBA", "CS007LBA",
+    "CS001LBA", "CS011LBA", "CS013LBA",
     // Currently unavailable
-    "CS001LBA", "CS011LBA", "CS013LBA", "CS017LBA", "CS021LBA", "CS032LBA"};
+    "CS017LBA", "CS021LBA", "CS032LBA"};
 
 struct AartfaacStation {
-  boost::string_view station;
+  std::string_view station;
   int element;
 };
 
-#if __cplusplus > 201402L
 template <class T>
-static T ExtractIntegral(boost::string_view string) {
+static T ExtractIntegral(std::string_view string) {
   int value;
   std::from_chars_result result =
       std::from_chars(string.begin(), string.end(), value);
@@ -50,50 +47,11 @@ static T ExtractIntegral(boost::string_view string) {
   }
   return value;
 }
-#else
-/** Modelled after std::from_chars_result. */
-struct from_chars_result {
-  const char* ptr;
-  std::errc ec;
-};
 
-/**
- * A minimal implementation of std::from_chars.
- *
- * @note No support for floating point values.
- * @note No support for bases other than 10.
- */
-template <class T>
-static from_chars_result from_chars(const char* first, const char* last,
-                                    T& value) {
-  if (first == last || *first < '0' || *first > '9') {
-    return {first, std::errc::invalid_argument};
-  }
-  value = 0;
-  do {
-    value *= 10;
-    value += *first - '0';
-    ++first;
-  } while (first != last && *first >= '0' && *first <= '9');
-
-  return {last, std::errc{}};
-}
-
-template <class T>
-static int ExtractIntegral(boost::string_view string) {
-  T value;
-  from_chars_result result = from_chars(string.begin(), string.end(), value);
-  if (result.ec != std::errc{} || result.ptr != string.end()) {
-    aocommon::ThrowRuntimeError("The value '", string,
-                                "' can't be converted to a number");
-  }
-  return value;
-}
-#endif
 enum class AartfaacElements { kInner, kOuter };
 
-static boost::optional<AartfaacStation> GetAartfaacStation(
-    boost::string_view station_name, AartfaacElements elements) {
+static std::optional<AartfaacStation> GetAartfaacStation(
+    std::string_view station_name, AartfaacElements elements) {
   if (!boost::starts_with(station_name, "A12_")) {
     return {};
   }
@@ -112,27 +70,6 @@ static boost::optional<AartfaacStation> GetAartfaacStation(
 }
 
 namespace everybeam {
-
-namespace {
-/**
- * @brief Search for LOBES h5 coefficient file
- * on the suggested path \param search_path. Returns
- * an empty string if the file cannot be found.
- *
- * @param search_path Search path
- * @param station_name Station name, as read from MS
- * @return std::string Path to file or empty string if file cannot be found
- */
-boost::filesystem::path FindCoeffFile(const std::string& search_path,
-                                      boost::string_view station_name) {
-  const std::string station_file = "LOBES_" + std::string{station_name} + ".h5";
-  return search_path.empty()
-             ? boost::filesystem::path(std::string{EVERYBEAM_DATA_DIR} +
-                                       std::string{"/lobes"}) /
-                   station_file
-             : boost::filesystem::path(search_path) / station_file;
-}
-}  // namespace
 
 static const H5::CompType kH5Dcomplex = [] {
   const std::string REAL("r");
@@ -178,7 +115,7 @@ void ReadOneElement(
   for (size_t i = 0; i < shape[0]; ++i) {
     for (size_t j = 0; j < shape[1]; ++j) {
       for (size_t k = 0; k < shape[3]; ++k) {
-        coefficients(i, j, 0, k) = *iterator++;
+        coefficients(i, j, 0, static_cast<long>(k)) = *iterator++;
       }
     }
   }
@@ -202,22 +139,27 @@ void ReadOneElement(
 
 LOBESElementResponse::LOBESElementResponse(const std::string& name,
                                            const Options& options) {
-  const boost::optional<AartfaacStation> aartfaac_station =
+  const std::optional<AartfaacStation> aartfaac_station =
       GetAartfaacStation(name, AartfaacElements::kInner);
 
-  boost::filesystem::path coeff_file_path = FindCoeffFile(
-      options.coeff_path, aartfaac_station ? aartfaac_station->station : name);
+  const std::filesystem::path search_path =
+      options.coeff_path.empty() ? GetPath("lobes")
+                                 : std::filesystem::path(options.coeff_path);
+  const std::string_view station_name =
+      aartfaac_station ? aartfaac_station->station : name;
+  const std::string station_file = "LOBES_" + std::string(station_name) + ".h5";
+  const std::filesystem::path coeff_file_path = search_path / station_file;
   H5::H5File h5file;
 
-  if (!boost::filesystem::exists(coeff_file_path)) {
-    throw std::runtime_error("LOBES coeffcients file: " +
+  if (!std::filesystem::exists(coeff_file_path)) {
+    throw std::runtime_error("LOBES coefficients file: " +
                              coeff_file_path.string() + " does not exists");
   }
 
   try {
     h5file.openFile(coeff_file_path.c_str(), H5F_ACC_RDONLY);
   } catch (const H5::FileIException& e) {
-    throw std::runtime_error("Could not open LOBES coeffcients file: " +
+    throw std::runtime_error("Could not open LOBES coefficients file: " +
                              coeff_file_path.string());
   }
 
@@ -266,68 +208,82 @@ LOBESElementResponse::LOBESElementResponse(const std::string& name,
   dataset.read(nms_.data(), H5::PredType::NATIVE_INT);
 }
 
+std::shared_ptr<ElementResponse> LOBESElementResponse::FixateDirection(
+    const vector3r_t& direction) const {
+  const vector2r_t thetaphi = cart2thetaphi(direction);
+
+  return std::make_shared<LobesElementResponseFixedDirection>(
+      std::static_pointer_cast<const LOBESElementResponse>(shared_from_this()),
+      ComputeBaseFunctions(thetaphi[0], thetaphi[1]));
+}
+
 LOBESElementResponse::BaseFunctions LOBESElementResponse::ComputeBaseFunctions(
     double theta, double phi) const {
-  LOBESElementResponse::BaseFunctions base_functions(nms_.size(), 2);
-  base_functions.setZero();
+  BaseFunctions base_functions(nms_.size() * 2, 0.0);
 
   for (size_t i = 0; i < nms_.size(); ++i) {
-    auto nms = nms_[i];
-    std::complex<double> q2, q3;
+    const nms_t& nms = nms_[i];
+    std::complex<double> q2;
+    std::complex<double> q3;
     std::tie(q2, q3) =
         everybeam::common::F4far_new(nms.s, nms.m, nms.n, theta, phi);
-    base_functions(i, 0) = q2;
-    base_functions(i, 1) = q3;
+    base_functions[i * 2 + 0] = q2;
+    base_functions[i * 2 + 1] = q3;
   }
+
   return base_functions;
 }
 
-aocommon::MC2x2 LOBESElementResponse::Response(int element_id, double freq,
+aocommon::MC2x2 LOBESElementResponse::Response(int element_id, double frequency,
                                                double theta, double phi) const {
   // Clip directions below the horizon.
   if (theta >= M_PI_2) {
     return aocommon::MC2x2::Zero();
   }
 
-  // When the objects basefunctions_ aren't initialized create our own copy.
-  // Note it's not possible to set the object's version since the function is
-  // called from multiple threads.
-  const BaseFunctions& basefunctions =
-      basefunctions_ ? *basefunctions_ : ComputeBaseFunctions(theta, phi);
-
-  const int freq_idx = FindFrequencyIdx(freq);
-  std::complex<double> xx = {0}, xy = {0}, yx = {0}, yy = {0};
-
-  const int nr_rows = basefunctions.rows();
-  if (nr_rows == 0) {
-    throw std::runtime_error(
-        "Number of rows in basefunctions_ member is 0. Did you run "
-        "SetFieldQuantities?");
-  }
-
-  for (int i = 0; i < nr_rows; ++i) {
-    const std::complex<double> q2 = basefunctions(i, 0);
-    const std::complex<double> q3 = basefunctions(i, 1);
-    xx += q2 * coefficients_(0, freq_idx, element_id, i);
-    xy += q3 * coefficients_(0, freq_idx, element_id, i);
-    yx += q2 * coefficients_(1, freq_idx, element_id, i);
-    yy += q3 * coefficients_(1, freq_idx, element_id, i);
-  }
-
-  return aocommon::MC2x2(xx, xy, yx, yy);
+  return Response(ComputeBaseFunctions(theta, phi), element_id, frequency);
 }
 
-std::shared_ptr<LOBESElementResponse> LOBESElementResponse::GetInstance(
+aocommon::MC2x2 LOBESElementResponse::Response(
+    const BaseFunctions& base_functions, int element_id,
+    double frequency) const {
+  const int frequency_index = FindFrequencyIndex(frequency);
+  aocommon::MC2x2 response = aocommon::MC2x2::Zero();
+
+  for (int i = 0; i < static_cast<int>(base_functions.size() / 2); ++i) {
+    const std::complex<double> q2 = base_functions[i * 2 + 0];
+    const std::complex<double> q3 = base_functions[i * 2 + 1];
+    response[0] += q2 * coefficients_(0, frequency_index, element_id, i);  // xx
+    response[1] += q3 * coefficients_(0, frequency_index, element_id, i);  // xy
+    response[2] += q2 * coefficients_(1, frequency_index, element_id, i);  // yx
+    response[3] += q3 * coefficients_(1, frequency_index, element_id, i);  // yy
+  }
+
+  return response;
+}
+
+std::shared_ptr<const LOBESElementResponse> LOBESElementResponse::GetInstance(
     const std::string& name, const Options& options) {
-  static std::map<std::string, std::shared_ptr<LOBESElementResponse>>
+  // Using a single LOBESElementResponse object for each name reduces memory
+  // usage since the coefficients are only loaded once.
+  // Using weak pointers in this map ensures that LOBESElementResponse objects,
+  // are deleted when they are no longer used, which saves memory.
+  static std::map<std::string, std::weak_ptr<const LOBESElementResponse>>
       name_response_map;
+  std::shared_ptr<const LOBESElementResponse> instance;
 
   auto entry = name_response_map.find(name);
   if (entry == name_response_map.end()) {
-    entry = name_response_map.insert(
-        entry, {name, std::make_shared<LOBESElementResponse>(name, options)});
+    instance = std::make_shared<const LOBESElementResponse>(name, options);
+    name_response_map.insert({name, instance});
+  } else {
+    instance = entry->second.lock();
+    if (!instance) {
+      instance = std::make_shared<const LOBESElementResponse>(name, options);
+      entry->second = instance;
+    }
   }
-  return entry->second;
+  return instance;
 }
 
 }  // namespace everybeam

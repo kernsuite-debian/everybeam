@@ -7,6 +7,7 @@
 #include <condition_variable>
 #include <cstring>
 #include <mutex>
+#include <stdexcept>
 #include <thread>
 #include <vector>
 
@@ -51,12 +52,16 @@ class ParallelFor {
    * The provided function is expected to accept two parameters, the loop
    * index and the thread id, e.g.:
    *   void loopFunction(size_t iteration, size_t threadID);
-   * It is called (end-start) times.
+   * It is called (end-start) times unless an exception occurs.
    *
    * This function is very similar to ThreadPool::For(), but does not
    * support recursion. For non-recursive loop, this function will be
    * faster. The function will block until all iterations have been
    * performed.
+   *
+   * If exceptions occur, the latest occurring exception will be
+   * rethrown in the calling thread. In such cases, not all iterations
+   * might be performed.
    */
   void Run(IterType start, IterType end,
            std::function<void(IterType, size_t)> function) {
@@ -74,6 +79,7 @@ class ParallelFor {
       lock.unlock();
       Loop(0);
       barrier_.wait();
+      CheckForException();
     }
   }
 
@@ -83,7 +89,10 @@ class ParallelFor {
    * The provided function is expected to take only the loop index
    * as parameter. If the thread ID is required, use the other overload.
    * This function behaves otherwise equal to the other overload.
-   * @see Run(IterType, IterType, std::function<void(IterType, size_t)>)
+   *
+   * For further info including exception behaviour, see the other overload:
+   * @ref Run(IterType, IterType, std::function<void(IterType, size_t)>)
+   *
    */
   void Run(IterType start, IterType end,
            std::function<void(IterType)> function) {
@@ -101,6 +110,7 @@ class ParallelFor {
       lock.unlock();
       Loop(0);
       barrier_.wait();
+      CheckForException();
     }
   }
 
@@ -123,16 +133,32 @@ class ParallelFor {
   ParallelFor(const ParallelFor&) = delete;
 
   /**
+   * Throw if an exception occurred and reset exception state.
+   */
+  void CheckForException() {
+    if (most_recent_exception_) {
+      std::exception_ptr to_throw = std::move(most_recent_exception_);
+      most_recent_exception_ = std::exception_ptr();
+      std::rethrow_exception(to_throw);
+    }
+  }
+
+  /**
    * Keep doing iterations until there are no more iterations necessary.
    */
   void Loop(size_t thread) {
-    IterType iter;
-    while (Next(iter)) {
-      if (loop_function_2_parameters_) {
-        loop_function_2_parameters_(iter, thread);
-      } else {
-        loop_function_1_parameter_(iter);
+    try {
+      IterType iter;
+      while (Next(iter)) {
+        if (loop_function_2_parameters_) {
+          loop_function_2_parameters_(iter, thread);
+        } else {
+          loop_function_1_parameter_(iter);
+        }
       }
+    } catch (std::exception&) {
+      std::lock_guard<std::mutex> lock(mutex_);
+      most_recent_exception_ = std::current_exception();
     }
   }
 
@@ -187,6 +213,7 @@ class ParallelFor {
   std::vector<std::thread> threads_;
   std::function<void(size_t, size_t)> loop_function_2_parameters_;
   std::function<void(size_t)> loop_function_1_parameter_;
+  std::exception_ptr most_recent_exception_;
 };
 }  // namespace aocommon
 

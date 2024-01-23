@@ -4,33 +4,31 @@
 #include "oskardatafile.h"
 
 #include <iostream>
+#include <tuple>
 
 namespace everybeam {
 
 Datafile::Datafile(const std::string& filename) {
   // Open file
-  std::cout << "read oskar datafile: " << filename << std::endl;
   h5_file_.reset(new H5::H5File(filename, H5F_ACC_RDONLY));
 
   // Disable HDF5 error prints
   H5::Exception::dontPrint();
 }
 
-std::shared_ptr<Dataset> Datafile::Get(const unsigned int freq) {
+const Dataset& Datafile::Get(const unsigned int freq) {
   std::lock_guard<std::mutex> lock(mutex_);
 
-  // Find dataset for frequency
+  // Find dataset for frequency.
   auto entry = map_.find(freq);
 
-  // If found, retrieve pointer to dataset
-  if (entry != map_.end()) {
-    return entry->second;
+  // If not found, read dataset.
+  if (entry == map_.end()) {
+    auto dataset = std::make_unique<Dataset>(*h5_file_, freq);
+    std::tie(entry, std::ignore) = map_.insert({freq, std::move(dataset)});
   }
 
-  // Read and return dataset
-  std::shared_ptr<Dataset> dataset_ptr;
-  dataset_ptr.reset(new Dataset(*h5_file_, freq));
-  map_.insert({freq, dataset_ptr});
-  return dataset_ptr;
+  // Return dataset.
+  return *entry->second;
 }
 }  // namespace everybeam

@@ -7,6 +7,7 @@
 #include <condition_variable>
 #include <cstring>
 #include <mutex>
+#include <stdexcept>
 #include <thread>
 #include <vector>
 
@@ -41,6 +42,10 @@ namespace aocommon {
  *     std::cout << i << " from thread " << thread << '\n';
  *   }
  * }
+ *
+ * Exceptions are not handled, which implies that an uncaught exception
+ * thrown while iterating might get thrown in the main thread or might cause
+ * immediate termination when it occurred in a separate thread.
  */
 template <typename Iter>
 class StaticFor {

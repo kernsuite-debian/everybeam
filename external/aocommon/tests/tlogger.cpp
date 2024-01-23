@@ -1,5 +1,3 @@
-#ifdef HAVE_LOGGER
-
 #include <aocommon/logger.h>
 
 #include <sstream>
@@ -45,5 +43,3 @@ BOOST_AUTO_TEST_CASE(logwriter) {
 }
 
 BOOST_AUTO_TEST_SUITE_END()
-
-#endif

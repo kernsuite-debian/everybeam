@@ -5,7 +5,6 @@
 #include "../telescope/phasedarray.h"
 #include "../common/types.h"
 
-#include "./../coords/coordutils.h"
 #include "./../coords/itrfdirection.h"
 #include "./../coords/itrfconverter.h"
 
@@ -38,19 +37,14 @@ void PhasedArrayPoint::Response(BeamMode beam_mode, std::complex<float>* buffer,
     has_partial_itrf_update_ = false;
   }
 
-  const PhasedArray& phased_array =
-      static_cast<const PhasedArray&>(*telescope_);
-
   aocommon::MC2x2F inverse_central_gain;
   const bool apply_normalisation = CalculateBeamNormalisation(
       beam_mode, time_, freq, station_idx, inverse_central_gain);
-  const double sb_freq = use_channel_frequency_ ? freq : subband_frequency_;
 
-  const aocommon::MC2x2F gain_matrix =
-      aocommon::MC2x2F(phased_array.GetStation(station_idx)
-                           ->Response(beam_mode, time_, freq, itrf_direction_,
-                                      sb_freq, station0_, tile0_)
-                           .Data());
+  const aocommon::MC2x2F gain_matrix(
+      UnnormalisedResponse(beam_mode, station_idx, freq, itrf_direction_,
+                           station0_, tile0_)
+          .Data());
 
   if (apply_normalisation) {
     aocommon::MC2x2F::ATimesB(buffer, inverse_central_gain, gain_matrix);
@@ -97,8 +91,8 @@ aocommon::MC2x2 PhasedArrayPoint::UnnormalisedResponse(
   const double sb_freq = use_channel_frequency_ ? freq : subband_frequency_;
 
   return phased_array.GetStation(station_idx)
-      ->Response(beam_mode, time_, freq, direction, sb_freq, station0, tile0,
-                 rotate_);
+      .Response(beam_mode, time_, freq, direction, sb_freq, station0, tile0,
+                rotate_);
 }
 
 aocommon::MC2x2 PhasedArrayPoint::ElementResponse(size_t station_idx,
@@ -108,8 +102,8 @@ aocommon::MC2x2 PhasedArrayPoint::ElementResponse(size_t station_idx,
   const PhasedArray& phased_array =
       static_cast<const PhasedArray&>(*telescope_);
   return phased_array.GetStation(station_idx)
-      ->ComputeElementResponse(time_, freq, direction, element_idx, is_local_,
-                               rotate_);
+      .ComputeElementResponse(time_, freq, direction, element_idx, is_local_,
+                              rotate_);
 }
 
 void PhasedArrayPoint::UpdateITRFVectors(double ra, double dec) {
@@ -119,28 +113,19 @@ void PhasedArrayPoint::UpdateITRFVectors(double ra, double dec) {
   // The lock prevents different PhasedArrayPoints to calculate the
   // the station response simultaneously
   std::unique_lock<std::mutex> lock(mutex_);
-  coords::ITRFConverter itrf_converter(time_ + 0.5 * update_interval_);
-  coords::SetITRFVector(itrf_converter.ToDirection(delay_dir_), station0_);
-  coords::SetITRFVector(itrf_converter.ToDirection(tile_beam_dir_), tile0_);
-
-  const casacore::Unit rad_unit("rad");
-
-  // Only n_dir relevant for a single point
-  casacore::MDirection n_dir(
-      casacore::MVDirection(casacore::Quantity(ra, rad_unit),
-                            casacore::Quantity(dec, rad_unit)),
-      casacore::MDirection::J2000);
-  coords::SetITRFVector(itrf_converter.ToDirection(n_dir), itrf_direction_);
-
-  coords::SetITRFVector(itrf_converter.ToDirection(preapplied_beam_dir_),
-                        diff_beam_centre_);
+  const coords::ItrfConverter itrf_converter(time_ + 0.5 * update_interval_);
+  station0_ = itrf_converter.ToItrf(delay_dir_);
+  tile0_ = itrf_converter.ToItrf(tile_beam_dir_);
+  // Only the n vector is relevant for a single point. l and m are not.
+  itrf_direction_ = itrf_converter.RaDecToItrf(ra, dec);
+  diff_beam_centre_ = itrf_converter.ToItrf(preapplied_beam_dir_);
 }
 
 void PhasedArrayPoint::UpdateITRFVectors(std::mutex& mutex) {
   std::unique_lock<std::mutex> lock(mutex);
-  coords::ITRFConverter itrf_converter(time_);
-  coords::SetITRFVector(itrf_converter.ToDirection(delay_dir_), station0_);
-  coords::SetITRFVector(itrf_converter.ToDirection(tile_beam_dir_), tile0_);
+  const coords::ItrfConverter itrf_converter(time_);
+  station0_ = itrf_converter.ToItrf(delay_dir_);
+  tile0_ = itrf_converter.ToItrf(tile_beam_dir_);
 }
 
 }  // namespace pointresponse

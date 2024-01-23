@@ -13,11 +13,11 @@
 #include "../elementresponse.h"
 #include "../load.h"
 
+using aocommon::CoordinateSystem;
 using everybeam::BeamMode;
 using everybeam::ElementResponseModel;
 using everybeam::Load;
 using everybeam::Options;
-using everybeam::coords::CoordinateSystem;
 using everybeam::griddedresponse::AartfaacGrid;
 using everybeam::griddedresponse::GriddedResponse;
 using everybeam::pointresponse::AartfaacPoint;
@@ -65,9 +65,7 @@ static std::unique_ptr<Telescope> LoadAartfaac6Telescope(
 BOOST_AUTO_TEST_CASE(load) {
   Options options;
   // TODO AST-807 harden this test
-  // - When DOWNLOAD_LOBES is undefined it throws.
   // - When an Aartfaac-12 MS is used it throws.
-  // - Builds where DOWNLOAD_LOBES is undefined aren't tested in CI.
   {
     options.element_response_model = ElementResponseModel::kLOBES;
     std::unique_ptr<Telescope> telescope = LoadAartfaac6Telescope(options);
@@ -226,7 +224,6 @@ BOOST_AUTO_TEST_CASE(under_horizon_grid) {
   }
 }
 
-#ifdef DOWNLOAD_LOBES
 static std::unique_ptr<everybeam::telescope::Telescope> GetTelescopeLofar() {
   Options options;
   options.element_response_model = ElementResponseModel::kLOBES;
@@ -239,13 +236,14 @@ static std::unique_ptr<everybeam::telescope::Telescope> GetTelescopeLofar() {
   // AARTFAAC's element response is validated against LOFAR's response. Make
   // sure the needed stations are at the expected offset. When this fails this
   // fix also needs to be applied to the point_response_lobes test.
-  const LOFAR& lofar = static_cast<const LOFAR&>(*telescope.get());
-  BOOST_REQUIRE_EQUAL(lofar.GetStation(1)->GetName(), "CS002LBA");
-  BOOST_REQUIRE_EQUAL(lofar.GetStation(2)->GetName(), "CS003LBA");
-  BOOST_REQUIRE_EQUAL(lofar.GetStation(3)->GetName(), "CS004LBA");
-  BOOST_REQUIRE_EQUAL(lofar.GetStation(4)->GetName(), "CS005LBA");
-  BOOST_REQUIRE_EQUAL(lofar.GetStation(5)->GetName(), "CS006LBA");
-  BOOST_REQUIRE_EQUAL(lofar.GetStation(6)->GetName(), "CS007LBA");
+  const LOFAR* lofar = dynamic_cast<const LOFAR*>(telescope.get());
+  BOOST_REQUIRE(lofar);
+  BOOST_REQUIRE_EQUAL(lofar->GetStation(1).GetName(), "CS002LBA");
+  BOOST_REQUIRE_EQUAL(lofar->GetStation(2).GetName(), "CS003LBA");
+  BOOST_REQUIRE_EQUAL(lofar->GetStation(3).GetName(), "CS004LBA");
+  BOOST_REQUIRE_EQUAL(lofar->GetStation(4).GetName(), "CS005LBA");
+  BOOST_REQUIRE_EQUAL(lofar->GetStation(5).GetName(), "CS006LBA");
+  BOOST_REQUIRE_EQUAL(lofar->GetStation(6).GetName(), "CS007LBA");
 
   return telescope;
 }
@@ -387,15 +385,14 @@ BOOST_AUTO_TEST_CASE(gridded_response_lobes,
         full_response_all.data() + (i + 1) * buffer_size, full_response.data(),
         full_response.data() + buffer_size);
 
-    for (size_t pixel = 0; pixel < kWidth * kHeight; ++pixel)
+    for (size_t pixel = 0; pixel < kWidth * kHeight; ++pixel) {
       // Array factor should be identity
       BOOST_CHECK_EQUAL_COLLECTIONS(array_factor.data() + pixel * 4u,
                                     array_factor.data() + (pixel + 1u) * 4u,
                                     array_factor_ref.data(),
                                     array_factor_ref.data() + 4);
+    }
   }
 }
-
-#endif
 
 BOOST_AUTO_TEST_SUITE_END()

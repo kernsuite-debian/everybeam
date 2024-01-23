@@ -47,6 +47,23 @@ class MC2x2DiagBase {
     _values[1] = m11;
   }
 
+  /**
+   * Construct via initializer list, will be converted to complex type.
+   * Assumes that list has size two.
+   */
+  MC2x2DiagBase(std::initializer_list<ValType> list) {
+    assert(list.size() == 2);
+    std::copy_n(list.begin(), 2, &_values[0]);
+  }
+
+  /**
+   * Construct via initializer list. Assumes that list has size two.
+   */
+  MC2x2DiagBase(std::initializer_list<std::complex<ValType>> list) {
+    assert(list.size() == 2);
+    std::copy_n(list.begin(), 2, &_values[0]);
+  }
+
   MC2x2DiagBase<ValType>& operator=(const MC2x2DiagBase<ValType>& source) {
     _values[0] = source._values[0];
     _values[1] = source._values[1];

@@ -1,23 +1,13 @@
-cmake_minimum_required(VERSION 2.8.8)
+cmake_minimum_required(VERSION 3.11)
 
 project(aocommon)
 
-include(CheckCXXCompilerFlag)
-check_cxx_compiler_flag("-std=c++17" COMPILER_HAS_CXX17)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED YES)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(CMAKE_CXX_FLAGS
     "${CMAKE_CXX_FLAGS} -Wall -Werror=zero-as-null-pointer-constant -ggdb")
-
-if(COMPILER_HAS_CXX17 AND NOT DISABLE_CXX17)
-  add_compile_options(-std=c++17)
-  add_definitions(-DHAVE_LOGGER)
-else()
-  add_compile_options(-std=c++11)
-  message(
-    WARNING
-      "Selected compiler does not support the C++17 standard. This will disable the Logger class, which requires C++17."
-  )
-endif()
 
 # add target to generate API documentation with Doxygen
 find_package(Threads REQUIRED)
@@ -50,11 +40,14 @@ include_directories(SYSTEM ${CASACORE_INCLUDE_DIRS})
 find_package(CFITSIO REQUIRED)
 include_directories(SYSTEM ${CFITSIO_INCLUDE_DIR})
 
+include(CMake/FetchXTensor.cmake)
+
 add_executable(
   runtests
   tests/runtests.cpp
   tests/tangle.cpp
   tests/tbanddata.cpp
+  tests/tbarrier.cpp
   tests/tfits.cpp
   tests/tfluxdensity.cpp
   tests/thmatrix4x4.cpp
@@ -66,17 +59,25 @@ add_executable(
   tests/tmatrix4x4.cpp
   tests/tmultibanddata.cpp
   tests/tparallelfor.cpp
+  tests/tpolarization.cpp
   tests/tqueue.cpp
   tests/tradeccoord.cpp
   tests/tstaticfor.cpp
   tests/tserialstream.cpp
+  tests/tspan.cpp
   tests/tthreadpool.cpp
   tests/tthrowruntimeerror.cpp
   tests/ttransform_if.cpp
+  tests/tutensor.cpp
   tests/tuvector.cpp)
 target_link_libraries(
-  runtests ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY} ${Boost_DATE_TIME_LIBRARY}
-  ${CMAKE_THREAD_LIBS_INIT} ${CASACORE_LIBRARIES} ${CFITSIO_LIBRARY})
+  runtests
+  ${Boost_UNIT_TEST_FRAMEWORK_LIBRARY}
+  ${Boost_DATE_TIME_LIBRARY}
+  ${CMAKE_THREAD_LIBS_INIT}
+  ${CASACORE_LIBRARIES}
+  ${CFITSIO_LIBRARY}
+  xtensor)
 
 add_custom_target(execute_runtests_target ALL DEPENDS execute_runtests)
 add_custom_command(
@@ -91,4 +92,6 @@ add_custom_target(
           coverage.xml
   DEPENDS execute_runtests)
 
-message(STATUS "Flags passed to C++ compiler: " ${CMAKE_CXX_FLAGS})
+# CMAKE_CXX_FLAGS does not contain all flags.
+# For example, CMake derives C++ version flags from CMAKE_CXX_STANDARD etc.
+message(STATUS "Flags passed to C++ compiler (incomplete): " ${CMAKE_CXX_FLAGS})

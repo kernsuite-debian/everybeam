@@ -1,3 +1,8 @@
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+  DEBIAN_FRONTEND: "noninteractive"
+  CUDA_ARCH: "7.0"
+
 image: fdulwich/oskar-ci:cuda-11.3-3
 
 stages:
@@ -10,13 +15,13 @@ stages:
 
 build-test-debug:
   stage: build and test
-  tags: [k8srunner-gpu]
+  tags: [k8srunner-gpu-v100]
   before_script:
     - *ready_reports
     - nvidia-smi
     - mkdir debug
     - cd debug/
-    - cmake ../ -DCOVERAGE_REPORT=ON -DCUDA_ARCH=6.1
+    - cmake ../ -DCOVERAGE_REPORT=ON -DCUDA_ARCH=$CUDA_ARCH
   script:
     - make -j
     - ./apps/oskar_system_info
@@ -29,21 +34,23 @@ build-test-debug:
       - build/
       - coverage/
     reports:
-      cobertura: build/reports/code-coverage.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: build/reports/code-coverage.xml
 
 build-test-release:
   stage: build and test
-  tags: [k8srunner-gpu]
+  tags: [k8srunner-gpu-v100]
   before_script:
     - *ready_reports
     # We need CMake >= 3.21.0 for the --output-junit option on CTest.
     - cmake --version
-    - nvidia-smi
     - mkdir release
     - cd release/
-    - cmake ../ -DCUDA_ARCH=6.1
+    - cmake ../ -DCUDA_ARCH=$CUDA_ARCH
   script:
     - make -j
+    - ./apps/oskar_system_info
     - ctest --output-junit unit-tests.xml
   after_script:
     - mv release/unit-tests.xml build/reports/
@@ -59,7 +66,7 @@ linting:
     - *ready_reports
     - mkdir release
     - cd release/
-    - cmake ../ -DCUDA_ARCH=6.1 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+    - cmake ../ -DCUDA_ARCH=$CUDA_ARCH -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
   script:
     - echo "Running lint check"
     - run-clang-tidy -quiet '^(?:(?!extern/|test/).)*$\r?\n?' > clang-tidy.out
@@ -92,8 +99,6 @@ docker-release:
   before_script:
     - apk add make git
     - cd docker
-    - echo $CAR_OCI_REGISTRY_USERNAME
-    - echo $CI_COMMIT_TAG
     - echo $CAR_OCI_REGISTRY_PASSWORD | docker login --username $CAR_OCI_REGISTRY_USERNAME --password-stdin $CAR_OCI_REGISTRY_HOST
   script:
     - docker build -t artefact.skao.int/oskar-python3 -t artefact.skao.int/oskar-python3:$CI_COMMIT_TAG oskar-python3/
@@ -165,5 +170,5 @@ pages:
 # Create Gitlab CI badges from CI metrics
 # https://developer.skao.int/en/latest/tools/continuousintegration.html#automated-collection-of-ci-health-metrics-as-part-of-the-ci-pipeline
 include:
-  - project: 'ska-telescope/templates-repository'
-    file: 'gitlab-ci/includes/post_step.yml'
+  - project: "ska-telescope/templates-repository"
+    file: "gitlab-ci/includes/finaliser.gitlab-ci.yml"

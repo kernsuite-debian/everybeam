@@ -1,7 +1,7 @@
 # Copyright (C) 2020 ASTRON (Netherlands Institute for Radio Astronomy)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from everybeam import load_telescope, LOFAR, GridSettings
+from everybeam import load_telescope, LOFAR, GridSettings, ElementResponseModel
 import pytest
 import os
 import numpy as np
@@ -30,6 +30,7 @@ def lba_setup():
         "direction": np.array([0.667806, -0.0770635, 0.740335]),
         "preapplied_beam_dir": np.array([0.655743, -0.0670973, 0.751996]),
         "station0": np.array([0.655743, -0.0670973, 0.751996]),
+        "station0_name": "CS001LBA",
         "tile0": np.array([0.655743, -0.0670973, 0.751996]),
         "cpp_response": np.array(
             [
@@ -73,6 +74,7 @@ def hba_setup():
         "direction": np.array([0.42458804, 0.46299569, 0.77804112]),
         "preapplied_beam_dir": np.array([0.408326, 0.527345, 0.745102]),
         "station0": np.array([0.4083262, 0.52734471, 0.74510219]),
+        "station0_name": "CS001HBA0",
         "tile0": np.array([0.40832685, 0.52734421, 0.74510219]),
         "cpp_response": np.array(
             [
@@ -109,24 +111,109 @@ def check_consistency_station_response(telescope, time):
     stations_all = telescope.station_response(time)
     for station_idx in range(stations_all.shape[0]):
         channel_all = telescope.station_response(time, station_idx)
-        np.testing.assert_allclose(stations_all[station_idx, :, :, :], channel_all)
+        np.testing.assert_allclose(
+            stations_all[station_idx, :, :, :], channel_all
+        )
         for channel_idx in range(channel_all.shape[0]):
-            channel_single = telescope.station_response(time, station_idx, channel_idx)
-            np.testing.assert_allclose(channel_all[channel_idx, :, :], channel_single)
+            channel_single = telescope.station_response(
+                time, station_idx, channel_idx
+            )
+            np.testing.assert_allclose(
+                channel_all[channel_idx, :, :], channel_single
+            )
             # Check against implementation where frequency is given as input
             frequency = telescope.channel_frequency(channel_idx)
-            freq_single = telescope.station_response(time, station_idx, frequency)
+            freq_single = telescope.station_response(
+                time, station_idx, frequency
+            )
             np.testing.assert_allclose(freq_single, channel_single)
 
 
+def check_array_factor_vector(telescope, time, direction, station0, tile0):
+    frequencies = np.array([100e6, 110e6, 120e6])
+    station_indices = np.array([[0, 1, 2, 3], [4, 5, 6, 7]])
+    directions = np.stack([direction, direction, direction])
+    directions[1, 0] *= -1.0
+    directions[2, 1] *= -1.0
+
+    all_array_factors = telescope.array_factor(
+        time, station_indices, frequencies, directions, station0, tile0
+    )
+    assert (
+        all_array_factors.shape
+        == station_indices.shape
+        + frequencies.shape
+        + directions.shape[:-1]
+        + (2, 2)
+    )
+    for f in range(frequencies.size):
+        for s0 in range(station_indices.shape[0]):
+            for s1 in range(station_indices.shape[1]):
+                for d in range(directions.shape[0]):
+                    single_array_factor = telescope.array_factor(
+                        time,
+                        station_indices[s0, s1],
+                        frequencies[f],
+                        directions[d],
+                        station0,
+                        tile0,
+                    )
+                    assert single_array_factor.shape == (2, 2)
+                    np.testing.assert_allclose(
+                        all_array_factors[s0, s1, f, d, :, :],
+                        single_array_factor,
+                    )
+
+
+def check_array_factor_all_stations_all_frequencies(
+    telescope, time, direction, station0, tile0
+):
+    all_array_factors = telescope.array_factor(
+        time, [], [], direction, station0, tile0
+    )
+    assert all_array_factors.shape == (
+        telescope.nr_stations,
+        telescope.nr_channels,
+        2,
+        2,
+    )
+    for s in range(telescope.nr_stations):
+        for f in range(telescope.nr_channels):
+            single_array_factor = telescope.array_factor(
+                time,
+                s,
+                telescope.channel_frequency(f),
+                direction,
+                station0,
+                tile0,
+            )
+            assert single_array_factor.shape == (2, 2)
+            np.testing.assert_allclose(
+                all_array_factors[s, f, :, :],
+                single_array_factor,
+            )
+
+
 def check_reference_solution(
-    telescope, time, station_id, freq, direction, station0, tile0, reference_solution
+    telescope,
+    time,
+    station_id,
+    freq,
+    direction,
+    station0,
+    tile0,
+    reference_solution,
 ):
     """
     Check computed response against provided reference solution.
     """
     response = telescope.station_response(
-        time, station_id, freq, direction, station0, tile0,
+        time,
+        station_id,
+        freq,
+        direction,
+        station0,
+        tile0,
     )
     np.testing.assert_allclose(response, reference_solution, atol=1e-6)
 
@@ -135,7 +222,9 @@ def check_reference_solution(
     array_factor = telescope.array_factor(
         time, station_id, freq, direction, station0, tile0
     )
-    element_response = telescope.element_response(time, station_id, freq, direction)
+    element_response = telescope.element_response(
+        time, station_id, freq, direction
+    )
     np.testing.assert_allclose(
         np.matmul(array_factor, element_response), response, atol=1e-6
     )
@@ -169,17 +258,35 @@ def test_coordinate_system():
 @pytest.mark.parametrize("differential_beam", [True, False])
 def test_lofar(ref, differential_beam):
     ms_path = os.path.join(DATADIR, ref["filename"])
-    telescope = load_telescope(ms_path, use_differential_beam=differential_beam)
-    assert isinstance(telescope, LOFAR)
+    telescope = load_telescope(
+        ms_path, use_differential_beam=differential_beam
+    )
+    assert type(telescope) is LOFAR
+    assert telescope.station_name(0) == ref["station0_name"]
+    assert (
+        telescope.station_element_response(0).model
+        == ElementResponseModel.hamaker
+    )
 
     time = ref["time"]
     freq = ref["freq"]
-    direction = ref["preapplied_beam_dir"] if differential_beam else ref["direction"]
+    direction = (
+        ref["preapplied_beam_dir"] if differential_beam else ref["direction"]
+    )
     ref_solution = (
-        np.eye(2, dtype=np.complex64) if differential_beam else ref["cpp_response"]
+        np.eye(2, dtype=np.complex64)
+        if differential_beam
+        else ref["cpp_response"]
     )
 
     check_consistency_station_response(telescope, time)
+    check_array_factor_vector(
+        telescope, time, direction, ref["station0"], ref["tile0"]
+    )
+    check_array_factor_all_stations_all_frequencies(
+        telescope, time, direction, ref["station0"], ref["tile0"]
+    )
+
     check_reference_solution(
         telescope,
         time,
@@ -193,9 +300,15 @@ def test_lofar(ref, differential_beam):
 
     # Array factor in pointing direction should be unity
     array_factor_I = telescope.array_factor(
-        time, ref["station_id"], freq, ref["station0"], ref["station0"], ref["station0"]
+        time,
+        ref["station_id"],
+        freq,
+        ref["station0"],
+        ref["station0"],
     )
-    np.testing.assert_allclose(array_factor_I, np.eye(2, dtype=np.complex64), rtol=1e-6)
+    np.testing.assert_allclose(
+        array_factor_I, np.eye(2, dtype=np.complex64), rtol=1e-6
+    )
 
     # For equal station and tile direction, check that the same response is
     # obtained via two routes:
@@ -211,7 +324,11 @@ def test_lofar(ref, differential_beam):
 
     # tile0 direction is implicit in station0 direction
     response_2 = telescope.station_response(
-        time, ref["station_id"], freq, ref["direction"], ref["station0"],
+        time,
+        ref["station_id"],
+        freq,
+        ref["direction"],
+        ref["station0"],
     )
     np.testing.assert_allclose(response_1, response_2)
 
@@ -243,7 +360,9 @@ def test_lofar_gridded_response(ref):
     telescope = load_telescope(ms_path)
 
     grid_response_all = telescope.gridded_response(
-        ref["coordinate_system"], ref["time"], ref["freq"],
+        ref["coordinate_system"],
+        ref["time"],
+        ref["freq"],
     )
 
     for station_index in range(telescope.nr_stations):
@@ -277,7 +396,7 @@ def test_lofar_integrated_beam(ref):
     telescope = load_telescope(ms_path)
 
     nbaselines = telescope.nr_stations * (telescope.nr_stations + 1) // 2
-    baseline_weights = np.ones(nbaselines, dtype=np.float)
+    baseline_weights = np.ones(nbaselines, dtype=float)
     undersampling = 2
 
     # Provide single time
@@ -286,7 +405,7 @@ def test_lofar_integrated_beam(ref):
     )
 
     # Vector of times
-    baseline_weights = np.ones(nbaselines * 2, dtype=np.float)
+    baseline_weights = np.ones(nbaselines * 2, dtype=float)
     undersampled_response_1 = telescope.undersampled_response(
         ref["coordinate_system"],
         np.array([ref["time"], ref["time"]]),

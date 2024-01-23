@@ -21,10 +21,10 @@ endif()
 project(OSKAR CXX C)
 
 # === Project version.
-set(OSKAR_VERSION_ID "0x020801")
+set(OSKAR_VERSION_ID "0x020804")
 set(OSKAR_VERSION_MAJOR 2)
 set(OSKAR_VERSION_MINOR 8)
-set(OSKAR_VERSION_PATCH 1)
+set(OSKAR_VERSION_PATCH 4)
 set(OSKAR_VERSION_SUFFIX "dev")
 
 # === Add local CMake module path.
@@ -93,6 +93,7 @@ endif()
 find_package(OpenMP QUIET)
 find_package(HDF5 QUIET)
 find_package(Threads REQUIRED)
+find_package(HARP QUIET)
 if (CUDA_FOUND)
     add_definitions(-DOSKAR_HAVE_CUDA)
 endif()
@@ -105,6 +106,10 @@ endif()
 if (HDF5_FOUND)
     add_definitions(-DOSKAR_HAVE_HDF5)
     include_directories(${HDF5_INCLUDE_DIR})
+endif()
+if (HARP_FOUND)
+    add_definitions(-DOSKAR_HAVE_HARP)
+    include_directories(${HARP_INCLUDE_DIR})
 endif()
 
 # === Set compiler options.

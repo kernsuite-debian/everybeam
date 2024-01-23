@@ -199,8 +199,17 @@ class SerialIStream {
   template <typename PtrT>
   SerialIStream& readPtr(PtrT& ptr) {
     if (Bool()) {
-      ptr.reset(new typename std::remove_reference<decltype(*ptr)>::type());
-      ptr->Unserialize(*this);
+      if constexpr (std::is_constructible_v<typename PtrT::element_type,
+                                            SerialIStream&>) {
+        // Unserialize objects with a constructor with a single input stream
+        // argument. These classes do not need an 'Unserialize' function.
+        ptr.reset(new typename PtrT::element_type(*this));
+      } else {
+        // Unserialize objects with a default constructor and an 'Unserialize'
+        // function.
+        ptr.reset(new typename PtrT::element_type());
+        ptr->Unserialize(*this);
+      }
     } else {
       ptr.reset();
     }

@@ -1,0 +1,52 @@
+# Copyright (C) 2020 ASTRON (Netherlands Institute for Radio Astronomy)
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+FROM ubuntu:20.04
+RUN export DEBIAN_FRONTEND="noninteractive" && \
+	apt-get update && \
+	apt-get upgrade -y && \
+    apt-get -y install \
+		aoflagger-dev \
+		casacore-dev \
+		cmake \
+		doxygen \
+		g++ \
+		git \
+		graphviz \
+		libblas-dev \
+		libboost-all-dev \
+		libcfitsio-dev \
+		libfftw3-dev \
+		libgsl-dev \
+		libgtkmm-3.0-dev \
+		libhdf5-dev \
+		liblapack-dev \
+		libpng-dev \
+		libpython3-dev \
+		libxml2-dev \
+		make \
+		ninja-build \
+		python3-casacore \
+		python3-pip \
+		wcslib-dev \
+		wget \
+	&& \
+	rm -rf /var/lib/apt/lists/*
+RUN pip3 install \
+		aptly-api-client \
+		astropy \
+		breathe \
+		gcovr \
+		h5py \
+		lofarantpos \
+		matplotlib \
+		myst-parser \
+		numpy==1.19.0 \
+		pandas \
+		pytest \
+		pytest-lazy-fixture \
+		scipy \
+		sphinx \
+		sphinx_rtd_theme \
+		tqdm \
+	;

@@ -3,11 +3,11 @@
 
 #------------------------------------------------------------------------------
 # Top level CMakeLists.txt file for EveryBeam
-cmake_minimum_required(VERSION 3.7)
+cmake_minimum_required(VERSION 3.8)
 
 #------------------------------------------------------------------------------
 # Set version name and project number
-set(EVERYBEAM_VERSION 0.3.1)
+set(EVERYBEAM_VERSION 0.5.2)
 if(EVERYBEAM_VERSION MATCHES "^([0-9]+)\\.([0-9]+)\\.([0-9]+)")
   set(EVERYBEAM_VERSION_MAJOR "${CMAKE_MATCH_1}")
   set(EVERYBEAM_VERSION_MINOR "${CMAKE_MATCH_2}")
@@ -32,9 +32,20 @@ include(ExternalProject)
 
 # Configure directory for data files
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -Wall")
+set(CMAKE_CXX_VISIBILITY_PRESET "hidden")
 string(APPEND CMAKE_SHARED_LINKER_FLAGS " -Wl,--no-undefined")
-set(EVERYBEAM_DATADIR "share/${projectname}")
-set(EVERYBEAM_FULL_DATADIR "${CMAKE_INSTALL_PREFIX}/${EVERYBEAM_DATADIR}")
+# Note: Use type `STRING` here, instead of `PATH`. Because, if the user
+# specified a _relative_ path on the command-line without specifying the type
+# `PATH`, then the `set` command will treat the path as relative to the current
+# working directory and convert it to an absolute path. We do *not* want this!
+set(EVERYBEAM_DATADIR
+    "share/${projectname}"
+    CACHE STRING "EveryBeam data directory")
+if(IS_ABSOLUTE ${EVERYBEAM_DATADIR})
+  set(EVERYBEAM_FULL_DATADIR "${EVERYBEAM_DATADIR}")
+else()
+  set(EVERYBEAM_FULL_DATADIR "${CMAKE_INSTALL_PREFIX}/${EVERYBEAM_DATADIR}")
+endif()
 message("Storing data in: " ${EVERYBEAM_FULL_DATADIR})
 
 # Find and include git submodules
@@ -59,10 +70,14 @@ if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
 endif()
 
 # Include aocommon/eigen3/pybind11 headers
-include_directories("${CMAKE_SOURCE_DIR}/external/aocommon/include/")
-include_directories("${CMAKE_SOURCE_DIR}/external/eigen/")
+include_directories("${CMAKE_SOURCE_DIR}/external/aocommon/include")
+include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/external/eigen")
+# Find python with cmake to convince pybind11 to use right python path
+# This can go when we're using CMake >= 3.12:
+# https://pybind11.readthedocs.io/en/stable/compiling.html#findpython-mode
+find_package(PythonInterp 3)
 add_subdirectory("${CMAKE_SOURCE_DIR}/external/pybind11")
-include_directories(${pybind11_INCLUDE_DIRS})
+include_directories(SYSTEM ${pybind11_INCLUDE_DIRS})
 
 # Include schaapcommon
 add_subdirectory("${CMAKE_SOURCE_DIR}/external/schaapcommon")
@@ -77,32 +92,37 @@ find_package(
   COMPONENTS C CXX
   REQUIRED)
 add_definitions(${HDF5_DEFINITIONS} -DH5_USE_110_API)
-include_directories(${HDF5_INCLUDE_DIRS})
+include_directories(SYSTEM ${HDF5_INCLUDE_DIRS})
 
 find_package(Threads REQUIRED)
 
 # Find and include Casacore
 set(CASACORE_MAKE_REQUIRED_EXTERNALS_OPTIONAL TRUE)
 find_package(Casacore REQUIRED COMPONENTS casa ms tables measures fits)
-include_directories(${CASACORE_INCLUDE_DIRS})
+include_directories(SYSTEM ${CASACORE_INCLUDE_DIRS})
+
+# Fetch XTensor and related libraries.
+set(XTENSOR_LIBRARIES xtl xtensor xtensor-blas xtensor-fftw)
+include(external/aocommon/CMake/FetchXTensor.cmake)
 
 # Find and include Boost headers (boost::math required for MWA beam)
-# Filesystem component required to search for LOBES coefficient files
-find_package(
-  Boost
-  COMPONENTS filesystem system
-  REQUIRED)
-include_directories(${Boost_INCLUDE_DIRS})
+find_package(Boost REQUIRED)
+include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 
 # Find and include FFTW3 float libraries
 find_package(
   FFTW3
   COMPONENTS single
   REQUIRED)
+include_directories(SYSTEM ${FFTW3_INCLUDE_DIR})
+
+# Find BLAS and LAPACK, needed for everybeam::aterms only
+find_package(BLAS REQUIRED)
+find_package(LAPACK REQUIRED)
 
 # Find CFITSIO, needed for everybeam::aterms only
 find_package(CFITSIO REQUIRED)
-include_directories(${CFITSIO_INCLUDE_DIRS})
+include_directories(SYSTEM ${CFITSIO_INCLUDE_DIRS})
 
 #------------------------------------------------------------------------------
 # Set CMake and compiler options
@@ -118,8 +138,32 @@ if(POLICY CMP0074)
 endif()
 
 # Set compile options
-add_compile_options(-std=c++11 "${OpenMP_CXX_FLAGS}" -Wall)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED YES)
+set(CMAKE_CXX_EXTENSIONS NO)
+add_compile_options(
+  "${OpenMP_CXX_FLAGS}"
+  -Wall
+  -Wnon-virtual-dtor
+  -Wzero-as-null-pointer-constant
+  -Wduplicated-branches
+  -Wundef
+  -Wvla
+  -Wpointer-arith
+  -Wextra
+  -Wno-unused-parameter)
 string(APPEND CMAKE_SHARED_LINKER_FLAGS " -Wl,--no-undefined")
+
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+  # GCC 8.x requires linking with stdc++fs for the filesystem library
+  # https://gcc.gnu.org/onlinedocs/gcc-9.1.0/libstdc++/manual/manual/status.html#status.iso.2017
+  if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9.0)
+    link_libraries(stdc++fs)
+  elseif(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 8.0)
+    message(
+      FATAL_ERROR "The GCC version is too old, upgrade to GCC 8.0 or newer")
+  endif()
+endif()
 
 if(NOT CMAKE_BUILD_TYPE MATCHES Debug)
   add_compile_options(-DNDEBUG)
@@ -208,5 +252,3 @@ if(BUILD_APT_PACKAGES)
   add_subdirectory(package)
 endif()
 #------------------------------------------------------------------------------
-
-option(CMAKE_EXPORT_COMPILE_COMMANDS ON)

@@ -1,6 +1,8 @@
 #ifndef AOCOMMON_MATRIX_2X2_H_
 #define AOCOMMON_MATRIX_2X2_H_
 
+#include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <complex>
 #include <limits>
@@ -605,6 +607,23 @@ class MC2x2Base {
    * Construct from a diagonal matrix
    */
   MC2x2Base(const MC2x2DiagBase<ValType>& diag);
+
+  /**
+   * Construct from initializer list, values are internally converted
+   * to complex type. Assumes that list has size four.
+   */
+  MC2x2Base(std::initializer_list<ValType> list) {
+    assert(list.size() == 4);
+    std::copy_n(list.begin(), 4, &_values[0]);
+  }
+
+  /**
+   * Construct from initializer list. Assumes that list has size four.
+   */
+  MC2x2Base(std::initializer_list<std::complex<ValType>> list) {
+    assert(list.size() == 4);
+    std::copy_n(list.begin(), 4, &_values[0]);
+  }
 
   /**
    * Copy assignment operator

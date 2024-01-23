@@ -193,6 +193,37 @@ BOOST_AUTO_TEST_CASE(pointer) {
   BOOST_CHECK_EQUAL(out_unique->istream, &istr);
 }
 
+struct UnserializeViaConstructor {
+  // In contrast to the Serializable struct, this struct supports unserializing
+  // via its constructor instead of via an Unserialize function.
+  // Similarly to the Serializable struct, it stores received arguments.
+  UnserializeViaConstructor() = default;
+  explicit UnserializeViaConstructor(SerialIStream& stream)
+      : istream(&stream) {}
+  void Serialize(SerialOStream& stream) { ostream = &stream; }
+
+  SerialIStream* istream = nullptr;
+  SerialOStream* ostream = nullptr;
+};
+
+BOOST_AUTO_TEST_CASE(pointer_via_constructor) {
+  auto in = std::make_shared<UnserializeViaConstructor>();
+  std::unique_ptr<UnserializeViaConstructor> in_empty;
+  SerialOStream ostr;
+  BOOST_CHECK(&ostr.Ptr(in).Ptr(in_empty) == &ostr);
+  BOOST_CHECK_EQUAL(in->ostream, &ostr);
+  BOOST_CHECK_EQUAL(in->istream, nullptr);
+
+  SerialIStream istr(std::move(ostr));
+  std::shared_ptr<UnserializeViaConstructor> out;
+  std::unique_ptr<UnserializeViaConstructor> out_empty;
+  BOOST_CHECK(&istr.Ptr(out).Ptr(out_empty) == &istr);
+  BOOST_REQUIRE(out);
+  BOOST_CHECK_EQUAL(out->ostream, nullptr);
+  BOOST_CHECK_EQUAL(out->istream, &istr);
+  BOOST_CHECK(!out_empty);
+}
+
 struct TestObject {
   uint64_t a, b;
   void Serialize(SerialOStream& stream) const { stream.UInt64(a).UInt64(b); }
