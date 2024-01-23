@@ -1,11 +1,12 @@
 #ifndef AOCOMMON_FITS_FITSREADER_H_
 #define AOCOMMON_FITS_FITSREADER_H_
 
-#include <string>
-#include <vector>
+#include <cmath>
+#include <functional>
 #include <stdexcept>
 #include <sstream>
-#include <cmath>
+#include <string>
+#include <vector>
 
 #include <fitsio.h>
 
@@ -127,8 +128,8 @@ class FitsReader : public FitsBase {
   double PixelSizeX() const { return _meta.pixelSizeX; }
   double PixelSizeY() const { return _meta.pixelSizeY; }
 
-  double PhaseCentreDL() const { return _meta.phaseCentreDL; }
-  double PhaseCentreDM() const { return _meta.phaseCentreDM; }
+  double LShift() const { return _meta.l_shift; }
+  double MShift() const { return _meta.m_shift; }
 
   double Frequency() const { return _meta.frequency; }
   double Bandwidth() const { return _meta.bandwidth; }
@@ -198,6 +199,11 @@ class FitsReader : public FitsBase {
 
   fitsfile* FitsHandle() const { return _fitsPtr; }
 
+  /**
+   * The total number of two dimensional images stored in this fits file. This
+   * is the product of all dimensions except first two.
+   */
+  size_t NImages() const { return _meta.nImages; }
   size_t NMatrixElements() const { return _meta.nMatrixElements; }
   size_t NFrequencies() const { return _meta.nFrequencies; }
   size_t NAntennas() const { return _meta.nAntennas; }
@@ -280,6 +286,9 @@ class FitsReader : public FitsBase {
 
     _meta.imgWidth = naxes[0];
     _meta.imgHeight = naxes[1];
+
+    _meta.nImages = std::accumulate(naxes.begin() + 2, naxes.end(), 1L,
+                                    std::multiplies<long>());
 
     // There are fits files that say naxis=2 but then still define
     // the third and fourth axes, so we always continue reading
@@ -394,10 +403,10 @@ class FitsReader : public FitsBase {
       throw std::runtime_error("Invalid value for CUNIT1");
     double centrePixelX = 0.0;
     if (ReadDoubleKeyIfExists("CRPIX1", centrePixelX))
-      _meta.phaseCentreDL =
+      _meta.l_shift =
           (centrePixelX - ((_meta.imgWidth / 2.0) + 1.0)) * _meta.pixelSizeX;
     else
-      _meta.phaseCentreDL = 0.0;
+      _meta.l_shift = 0.0;
 
     if (ReadStringKeyIfExists("CTYPE2", tmp) && tmp != "DEC--SIN" &&
         _meta.checkCType)
@@ -411,10 +420,10 @@ class FitsReader : public FitsBase {
       throw std::runtime_error("Invalid value for CUNIT2");
     double centrePixelY = 0.0;
     if (ReadDoubleKeyIfExists("CRPIX2", centrePixelY))
-      _meta.phaseCentreDM =
+      _meta.m_shift =
           ((_meta.imgHeight / 2.0) + 1.0 - centrePixelY) * _meta.pixelSizeY;
     else
-      _meta.phaseCentreDM = 0.0;
+      _meta.m_shift = 0.0;
 
     readDateKeyIfExists("DATE-OBS", _meta.dateObs);
 
@@ -459,10 +468,11 @@ class FitsReader : public FitsBase {
           allowMultipleImages(allowMultipleImages_) {}
     std::string filename;
     size_t imgWidth, imgHeight;
+    size_t nImages;
     size_t nMatrixElements, nAntennas, nFrequencies, nTimesteps;
     double phaseCentreRA, phaseCentreDec;
     double pixelSizeX, pixelSizeY;
-    double phaseCentreDL, phaseCentreDM;
+    double l_shift, m_shift;
     double frequency, bandwidth, dateObs;
     bool hasBeam;
     double beamMajorAxisRad, beamMinorAxisRad, beamPositionAngle;

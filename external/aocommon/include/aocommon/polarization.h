@@ -4,6 +4,7 @@
 #include <complex>
 #include <set>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 namespace aocommon {
@@ -493,6 +494,11 @@ class Polarization {
           else
             throw std::runtime_error(
                 "Invalid polarization list: parse error near seperator");
+          break;
+        default:
+          using std::literals::string_literals::operator"" s;
+          throw std::runtime_error(
+              "Invalid polarization list: unexpected symbol '"s + c + "'");
       }
     }
     if (state != StartSt)

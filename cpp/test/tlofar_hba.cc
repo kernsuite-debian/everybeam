@@ -10,8 +10,6 @@
 #include "../griddedresponse/lofargrid.h"
 #include "../pointresponse/lofarpoint.h"
 #include "../elementresponse.h"
-#include "../coords/coordutils.h"
-#include "../../external/npy.hpp"
 #include "../station.h"
 #include "../common/types.h"
 #include "../telescope/lofar.h"
@@ -26,6 +24,7 @@
 #include <aocommon/matrix2x2.h>
 #include <aocommon/matrix2x2diag.h>
 
+using aocommon::CoordinateSystem;
 using everybeam::ATermSettings;
 using everybeam::BeamMode;
 using everybeam::BeamNormalisationMode;
@@ -37,8 +36,6 @@ using everybeam::Station;
 using everybeam::vector3r_t;
 using everybeam::aterms::ATermConfig;
 using everybeam::aterms::ParsetProvider;
-using everybeam::coords::CoordinateSystem;
-using everybeam::coords::SetITRFVector;
 using everybeam::griddedresponse::GriddedResponse;
 using everybeam::griddedresponse::LOFARGrid;
 using everybeam::pointresponse::LOFARPoint;
@@ -94,8 +91,8 @@ struct HBAFixture {
     coord_system.dec = 0.8415521;
     coord_system.dl = 0.5 * M_PI / 180.;
     coord_system.dm = 0.5 * M_PI / 180.;
-    coord_system.phase_centre_dl = 0.;
-    coord_system.phase_centre_dm = 0.;
+    coord_system.l_shift = 0.;
+    coord_system.m_shift = 0.;
     grid_response = telescope->GetGriddedResponse(coord_system);
     point_response = telescope->GetPointResponse(time);
   }
@@ -104,7 +101,7 @@ struct HBAFixture {
   std::unique_ptr<Telescope> telescope;
   std::unique_ptr<GriddedResponse> grid_response;
   std::unique_ptr<PointResponse> point_response;
-  CoordinateSystem coord_system;
+  aocommon::CoordinateSystem coord_system;
 
   casacore::MeasurementSet ms;
   double time;
@@ -124,18 +121,19 @@ BOOST_AUTO_TEST_CASE(load_lofar_hba) {
 
   // Assert if GetStation(stationd_id) behaves properly
   const LOFAR& lofartelescope = static_cast<const LOFAR&>(*telescope.get());
-  BOOST_CHECK_EQUAL(lofartelescope.GetStation(0)->GetName(), "CS001HBA0");
+  BOOST_CHECK_EQUAL(lofartelescope.GetStation(0).GetName(), "CS001HBA0");
 }
 
 BOOST_AUTO_TEST_CASE(tile_beam_direction) {
   auto lofar_telescope = dynamic_cast<LOFAR*>(telescope.get());
   // Check consistency of the different methods for computing
   // the tile beam direction
-  vector3r_t tile_beam_dir_0, tile_beam_dir_1;
-  SetITRFVector(lofar_telescope->GetTileBeamDirection(), tile_beam_dir_0);
-  SetITRFVector(ReadTileBeamDirection(ms), tile_beam_dir_1);
+  const casacore::MDirection tile_beam_dir_0 =
+      lofar_telescope->GetTileBeamDirection();
+  const casacore::MDirection tile_beam_dir_1 = ReadTileBeamDirection(ms);
   for (size_t i = 0; i < 3; ++i) {
-    BOOST_CHECK_CLOSE(tile_beam_dir_0[i], tile_beam_dir_1[i], 1e-4);
+    BOOST_CHECK_CLOSE(tile_beam_dir_0.getValue().getValue()[i],
+                      tile_beam_dir_1.getValue().getValue()[i], 1e-4);
   }
 }
 
@@ -155,8 +153,7 @@ BOOST_AUTO_TEST_CASE(element_response) {
       {-0.164112, -0.000467162}, {-0.843709, -0.00123631},
       {-0.892528, -0.00126278}, {0.0968527, -6.7158e-05});
 
-  const Station& station =
-      static_cast<const Station&>(*(lofartelescope.GetStation(11).get()));
+  const Station& station = lofartelescope.GetStation(11);
   aocommon::MC2x2 element_response =
       station.ComputeElementResponse(time, frequency, direction, false, true);
 
@@ -167,8 +164,7 @@ BOOST_AUTO_TEST_CASE(element_response) {
   }
 
   // Compute station response for station 63 (see also python/test)
-  const Station& station63 =
-      static_cast<const Station&>(*(lofartelescope.GetStation(63).get()));
+  const Station& station63 = lofartelescope.GetStation(63);
 
   vector3r_t direction_s63 = {0.424588, 0.4629957, 0.7780411};
   vector3r_t station0_dir = {0.4083262, 0.5273447, 0.7451022};
@@ -341,8 +337,7 @@ BOOST_AUTO_TEST_CASE(point_response_caching) {
 BOOST_AUTO_TEST_CASE(gridded_response_array_factor) {
   // This tests whether "element beam" x "array factor" == "full beam"
   const LOFAR& lofartelescope = static_cast<const LOFAR&>(*telescope.get());
-  const Station& station =
-      static_cast<const Station&>(*(lofartelescope.GetStation(23).get()));
+  const Station& station = lofartelescope.GetStation(23);
 
   // tile0 equals station0
   vector3r_t station0 = {0.408326, 0.527345, 0.745102};
@@ -435,7 +430,7 @@ BOOST_AUTO_TEST_CASE(integrated_beam) {
   // wsclean -size 40 40  -scale 900asec -apply-primary-beam  LOFAR_MOCK.ms
   //
   // where LOFAR_MOCK.ms the MS available from
-  // https://www.astron.nl/citt/EveryBeam/L258627-one-timestep.tar.bz2
+  // https://support.astron.nl/software/ci_data/EveryBeam/L258627-one-timestep.tar.bz2
   //
   // PLEASE NOTE: for the sake of testing, the baseline weights were set to 1
   // in wsclean::lbeamimagemaker, i.e.
@@ -457,8 +452,8 @@ BOOST_AUTO_TEST_CASE(integrated_beam) {
                                       coord_system.dec,
                                       (0.25 * M_PI / 180.),
                                       (0.25 * M_PI / 180.),
-                                      coord_system.phase_centre_dl,
-                                      coord_system.phase_centre_dm};
+                                      coord_system.l_shift,
+                                      coord_system.m_shift};
 
   std::unique_ptr<GriddedResponse> grid_response_pb =
       telescope->GetGriddedResponse(coord_system_pb);

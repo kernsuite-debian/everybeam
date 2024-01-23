@@ -1,4 +1,4 @@
-image: ubuntu:20.04
+image: ubuntu:22.04
 
 before_script:
  - apt-get update -qq
@@ -12,13 +12,11 @@ before_script:
     libcfitsio-dev
     pkg-config
     python3-pip
-    clang-format-12
- - pip3 install gcovr cmake-format
+    clang-format-14
+ - pip3 install gcovr black cmake-format
 
 format:
   script:
-    # run-format.sh uses 'clang-format', not 'clang-format-12'.
-    - ln -sf clang-format-12 /usr/bin/clang-format
     - ./scripts/run-format.sh
 
 aocommon:
@@ -32,4 +30,6 @@ aocommon:
     - make coverage
   artifacts:
     reports:
-      cobertura: build/coverage.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura-coverage.xml

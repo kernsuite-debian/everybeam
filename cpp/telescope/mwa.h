@@ -25,7 +25,7 @@ class PointResponse;
 
 namespace telescope {
 
-class MWA final : public Telescope {
+class [[gnu::visibility("default")]] MWA final : public Telescope {
  public:
   /**
    * @brief Construct a new MWA object
@@ -37,10 +37,10 @@ class MWA final : public Telescope {
   MWA(const casacore::MeasurementSet& ms, const Options& options);
 
   std::unique_ptr<griddedresponse::GriddedResponse> GetGriddedResponse(
-      const coords::CoordinateSystem& coordinate_system) const override;
+      const aocommon::CoordinateSystem& coordinate_system) const override;
 
-  std::unique_ptr<pointresponse::PointResponse> GetPointResponse(
-      double time) const override;
+  std::unique_ptr<pointresponse::PointResponse> GetPointResponse(double time)
+      const override;
 
   casacore::MPosition GetArrayPosition() const { return array_position_; }
   const std::array<double, 16>& GetDelays() const { return delays_; }

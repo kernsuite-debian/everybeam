@@ -17,10 +17,14 @@ add_subdirectory(skamidbeam)
 add_subdirectory(telescope)
 
 #------------------------------------------------------------------------------
+add_library(everybeam-core SHARED elementresponse.cc options.cc)
+target_include_directories(everybeam-core PRIVATE "${CMAKE_BINARY_DIR}")
+
 add_library(
   everybeam SHARED
   antenna.cc
   elementresponse.cc
+  elementresponsefactory.cc
   beamformer.cc
   beamformeridenticalantennas.cc
   beamformerlofar.cc
@@ -29,17 +33,13 @@ add_library(
   element.cc
   elementhamaker.cc
   load.cc
+  options.cc
   # aterms
-  aterms/atermconfig.cc
-  aterms/atermbase.cc
-  aterms/atermresampler.cc
-  aterms/everybeamaterm.cc
-  aterms/fitsatermbase.cc
-  aterms/fitsaterm.cc
-  aterms/dldmaterm.cc
-  aterms/pafbeamterm.cc
-  aterms/h5parmaterm.cc
-  aterms/cache.cc
+  # From CMake 3.12 onwards, the line below can be replaced by
+  # target_link_libraries(everybeam aterms)
+  # That way the dependencies of the aterms object library
+  # will be automatically linked as well
+  $<TARGET_OBJECTS:aterms>
   # common
   common/sphericalharmonics.cc
   common/fftresampler.cc
@@ -65,6 +65,7 @@ add_library(
   pointresponse/skamidpoint.cc
   circularsymmetric/atcacoefficients.cc
   circularsymmetric/gmrtcoefficients.cc
+  circularsymmetric/meerkatcoefficients.cc
   circularsymmetric/vlacoefficients.cc
   circularsymmetric/voltagepattern.cc
   # Phased array telescopes (SKA, LOFAR)
@@ -85,10 +86,11 @@ target_link_libraries(everybeam PUBLIC hamaker oskar lobes skamidbeam)
 target_link_libraries(
   everybeam PUBLIC ${CASACORE_LIBRARIES} ${HDF5_CXX_LIBRARIES}
                    ${FFTW3F_LIBRARY} ${CFITSIO_LIBRARY})
-target_link_libraries(everybeam PRIVATE schaapcommon Threads::Threads)
+target_link_libraries(everybeam PRIVATE schaapcommon Threads::Threads
+                                        ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
 
 install(
-  TARGETS everybeam
+  TARGETS everybeam everybeam-core
   EXPORT EveryBeamTargets
   DESTINATION lib)
 
@@ -102,7 +104,6 @@ install(
         element.h
         elementhamaker.h
         elementresponse.h
-        fieldresponse.h
         msreadutils.h
         station.h
         load.h

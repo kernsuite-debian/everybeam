@@ -1,10 +1,12 @@
 /*
- * Copyright (c) 2012-2021, The OSKAR Developers.
+ * Copyright (c) 2012-2022, The OSKAR Developers.
  * See the LICENSE file at the top-level directory of this distribution.
  */
 
 #include "telescope/station/oskar_evaluate_station_beam_aperture_array.h"
 
+#include "convert/oskar_convert_enu_directions_to_theta_phi.h"
+#include "convert/oskar_convert_theta_phi_to_ludwig3_components.h"
 #include "telescope/station/oskar_station_evaluate_element_weights.h"
 #include "telescope/station/element/oskar_element_evaluate.h"
 #include "telescope/station/oskar_blank_below_horizon.h"
@@ -95,6 +97,63 @@ static void oskar_evaluate_station_beam_aperture_array_private(
     oskar_station_beam_horizon_direction(s, gast_rad,
             &beam_x, &beam_y, &beam_z, status);
 
+    /* Check if HARP data exist. */
+    const oskar_Harp* harp_data = oskar_station_harp_data_const(
+            s, frequency_hz);
+    if (harp_data)
+    {
+        oskar_mem_ensure(theta, num_points, status);
+        oskar_mem_ensure(phi_x, num_points, status);
+        oskar_mem_ensure(phi_y, num_points, status);
+        oskar_convert_enu_directions_to_theta_phi(
+                offset_points, num_points, x, y, z, 0,
+                M_PI/2.0 - (oskar_station_element_euler_index_rad(s, 0, 0, 0) + M_PI/2.0),
+                M_PI/2.0 - (oskar_station_element_euler_index_rad(s, 1, 0, 0)),
+                theta, phi_x, phi_y, status);
+        oskar_harp_evaluate_smodes(
+                harp_data,
+                num_points,
+                theta,
+                phi_x,
+                work->poly,
+                work->ee,
+                work->qq,
+                work->dd,
+                work->pth,
+                work->pph,
+                status);
+        for (i = 0; i < 2; ++i)
+        {
+            oskar_station_evaluate_element_weights(s, i, frequency_hz,
+                    beam_x, beam_y, beam_z, time_index,
+                    work->weights, work->weights_scratch, status);
+            oskar_harp_evaluate_station_beam(
+                    harp_data,
+                    num_points,
+                    theta,
+                    phi_x,
+                    frequency_hz,
+                    i,
+                    num_elements,
+                    oskar_station_element_true_enu_metres_const(s, i, 0),
+                    oskar_station_element_true_enu_metres_const(s, i, 1),
+                    oskar_station_element_true_enu_metres_const(s, i, 2),
+                    work->weights,
+                    work->pth,
+                    work->pph,
+                    work->phase_fac,
+                    work->beam_coeffs,
+                    offset_out,
+                    beam,
+                    status);
+        }
+        oskar_convert_theta_phi_to_ludwig3_components(num_points,
+                phi_x, phi_y, swap_xy, offset_out, beam, status);
+        oskar_blank_below_horizon(offset_points, num_points, z,
+                offset_out, beam, status);
+        return;
+    }
+
     /* Evaluate beam if there are no child stations. */
     if (!oskar_station_has_child(s))
     {
@@ -145,7 +204,7 @@ static void oskar_evaluate_station_beam_aperture_array_private(
             {
                 const int eval_x = (i == 0 || num_feeds == 1) ? 1 : 0;
                 const int eval_y = (i == 1 || num_feeds == 1) ? 1 : 0;
-                oskar_station_evaluate_element_weights(s, i, wavenumber,
+                oskar_station_evaluate_element_weights(s, i, frequency_hz,
                         beam_x, beam_y, beam_z, time_index,
                         work->weights, work->weights_scratch, status);
                 oskar_dftw(norm_array, num_elements, wavenumber, work->weights,
@@ -209,7 +268,7 @@ static void oskar_evaluate_station_beam_aperture_array_private(
         {
             const int eval_x = (i == 0 || num_feeds == 1) ? 1 : 0;
             const int eval_y = (i == 1 || num_feeds == 1) ? 1 : 0;
-            oskar_station_evaluate_element_weights(s, i, wavenumber,
+            oskar_station_evaluate_element_weights(s, i, frequency_hz,
                     beam_x, beam_y, beam_z, time_index,
                     work->weights, work->weights_scratch, status);
             oskar_dftw(norm_array, num_elements, wavenumber, work->weights,

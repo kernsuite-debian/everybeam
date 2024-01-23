@@ -17,7 +17,7 @@ namespace griddedresponse {
 
 PhasedArrayGrid::PhasedArrayGrid(
     const telescope::Telescope* telescope_ptr,
-    const coords::CoordinateSystem& coordinate_system)
+    const aocommon::CoordinateSystem& coordinate_system)
     : GriddedResponse(telescope_ptr, coordinate_system),
       PhasedArrayResponse(static_cast<const PhasedArray*>(telescope_ptr)) {
   // Compute and set number of threads
@@ -64,7 +64,7 @@ void PhasedArrayGrid::ResponseAllStations(BeamMode beam_mode,
 
   SetITRFVectors(time);
 
-  bool apply_normalisation;
+  bool apply_normalisation = false;
   inverse_central_gain_.resize(phased_array.GetNrStations());
   for (size_t i = 0; i != phased_array.GetNrStations(); ++i) {
     apply_normalisation = CalculateBeamNormalisation(
@@ -89,32 +89,14 @@ void PhasedArrayGrid::ResponseAllStations(BeamMode beam_mode,
 }
 
 void PhasedArrayGrid::SetITRFVectors(double time) {
-  coords::ITRFConverter itrf_converter(time);
-  coords::SetITRFVector(itrf_converter.ToDirection(delay_dir_), station0_);
-  coords::SetITRFVector(itrf_converter.ToDirection(tile_beam_dir_), tile0_);
+  const coords::ItrfConverter itrf_converter(time);
+  station0_ = itrf_converter.ToItrf(delay_dir_);
+  tile0_ = itrf_converter.ToItrf(tile_beam_dir_);
 
-  const casacore::Unit rad_unit("rad");
-
-  casacore::MDirection l_dir(
-      casacore::MVDirection(casacore::Quantity(ra_ + M_PI / 2, rad_unit),
-                            casacore::Quantity(0, rad_unit)),
-      casacore::MDirection::J2000);
-  coords::SetITRFVector(itrf_converter.ToDirection(l_dir), l_vector_itrf_);
-
-  casacore::MDirection m_dir(
-      casacore::MVDirection(casacore::Quantity(ra_, rad_unit),
-                            casacore::Quantity(dec_ + M_PI / 2, rad_unit)),
-      casacore::MDirection::J2000);
-  coords::SetITRFVector(itrf_converter.ToDirection(m_dir), m_vector_itrf_);
-
-  casacore::MDirection n_dir(
-      casacore::MVDirection(casacore::Quantity(ra_, rad_unit),
-                            casacore::Quantity(dec_, rad_unit)),
-      casacore::MDirection::J2000);
-  coords::SetITRFVector(itrf_converter.ToDirection(n_dir), n_vector_itrf_);
-
-  coords::SetITRFVector(itrf_converter.ToDirection(preapplied_beam_dir_),
-                        diff_beam_centre_);
+  l_vector_itrf_ = itrf_converter.RaDecToItrf(ra_ + M_PI / 2.0, 0);
+  m_vector_itrf_ = itrf_converter.RaDecToItrf(ra_, dec_ + M_PI / 2.0);
+  n_vector_itrf_ = itrf_converter.RaDecToItrf(ra_, dec_);
+  diff_beam_centre_ = itrf_converter.ToItrf(preapplied_beam_dir_);
 }
 
 void PhasedArrayGrid::CalcThread(BeamMode beam_mode, bool apply_normalisation,
@@ -132,8 +114,8 @@ void PhasedArrayGrid::CalcThread(BeamMode beam_mode, bool apply_normalisation,
       double l, m, n;
       aocommon::ImageCoordinates::XYToLM(x, job.y, dl_, dm_, width_, height_, l,
                                          m);
-      l += phase_centre_dl_;
-      m += phase_centre_dm_;
+      l += l_shift_;
+      m += m_shift_;
       const double sqrt_term = 1.0 - l * l - m * m;
       if (sqrt_term >= 0.0) {
         n = std::sqrt(sqrt_term);
@@ -151,8 +133,8 @@ void PhasedArrayGrid::CalcThread(BeamMode beam_mode, bool apply_normalisation,
 
       const aocommon::MC2x2F gain_matrix = aocommon::MC2x2F(
           phased_array.GetStation(job.antenna_idx)
-              ->Response(beam_mode, time, frequency, itrf_direction, sb_freq,
-                         station0_, tile0_)
+              .Response(beam_mode, time, frequency, itrf_direction, sb_freq,
+                        station0_, tile0_)
               .Data());
 
       if (apply_normalisation) {

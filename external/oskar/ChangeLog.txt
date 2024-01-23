@@ -1,3 +1,21 @@
+2022-xx-yy  OSKAR-2.8.4
+
+    * Fix isotropic element patterns.
+
+2022-05-26  OSKAR-2.8.3
+
+    * Add option to use HARP beam library.
+
+    * Fix problem trying to write Measurement Sets with tile sizes > 2 GiB.
+
+2022-02-19  OSKAR-2.8.2
+
+    * Fix to make reference counter for HDF5 file handles thread-safe.
+
+2022-02-17  OSKAR-2.8.1
+
+    * Allow HDF5 gain tables to be used in station and telescope models.
+
 2021-11-23  OSKAR-2.8.0
 
     * Fix read of ionosphere pixel size from FITS header.

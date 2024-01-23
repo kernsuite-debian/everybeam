@@ -124,6 +124,7 @@ class LogReceiver {
  public:
   LogReceiver()
       : Fatal(this), Error(this), Warn(this), Info(this), Debug(this) {}
+  virtual ~LogReceiver() = default;
 
   template <enum Logger::LoggerLevel Level>
   class LevelReceiver {

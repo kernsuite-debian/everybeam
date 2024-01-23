@@ -24,7 +24,6 @@ versioning:
   script:
     # Unshallowing ensures that 'git log' works
     - git fetch --unshallow
-    - echo BASE_IMAGE_1804=${CI_REGISTRY_IMAGE}/base_1804:$(git log -n 1 --pretty=format:%H -- docker/ubuntu_18_04_base) > versions.env
     - echo BASE_IMAGE_2004=${CI_REGISTRY_IMAGE}/base_2004:$(git log -n 1 --pretty=format:%H -- docker/ubuntu_20_04_base) >> versions.env
     - echo BASE_IMAGE_2204=${CI_REGISTRY_IMAGE}/base_2204:$(git log -n 1 --pretty=format:%H -- docker/ubuntu_22_04_base) >> versions.env
     - cat versions.env
@@ -49,15 +48,13 @@ versioning:
   # Skip the job if there are no changes to the Docker file. This shortcut only
   # works for push and merge request jobs.
   # A manual pipeline run will thus create missing docker images.
-  rules:
-    - changes:
-      - $DOCKER_FILE
-
-prepare-base-1804:
-  extends: .prepare
-  variables:
-    DOCKER_IMAGE: $BASE_IMAGE_1804
-    DOCKER_FILE: docker/ubuntu_18_04_base
+  #
+  # This is disabled since the detections of the changes by GitLab seems flaky.
+  # TODO(AST-887) Reenable this to test whether it's no longer flaky.
+  #
+  #rules:
+  #  - changes:
+  #    - $DOCKER_FILE
 
 prepare-base-2004:
   extends: .prepare
@@ -70,13 +67,6 @@ prepare-base-2204:
   variables:
     DOCKER_IMAGE: $BASE_IMAGE_2204
     DOCKER_FILE: docker/ubuntu_22_04_base
-
-.needs-1804:
-  needs:
-    - job: versioning
-    - job: prepare-base-1804
-      optional: true
-  image: $BASE_IMAGE_1804
 
 .needs-2004:
   needs:
@@ -129,9 +119,6 @@ clang-tidy:
       - aocommon
       - build
 
-build-1804:
-  extends: [".needs-1804",".build"]
-
 build-2004:
   extends: [".needs-2004",".build"]
 
@@ -143,11 +130,6 @@ build-2204:
   script:
      - cd build/
      - ctest -j`nproc` -T test
-
-test-1804:
-  extends: .test
-  needs: ["versioning","build-1804"]
-  image: $BASE_IMAGE_1804
 
 test-2004:
   extends: .test

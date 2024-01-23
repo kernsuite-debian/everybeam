@@ -5,6 +5,7 @@
 #include <aocommon/io/serialistream.h>
 #include <aocommon/uvector.h>
 
+#include <algorithm>
 #include <cassert>
 #include <cstring>
 #include <cmath>
@@ -77,21 +78,28 @@ class ImageBase {
   using iterator = value_type*;
   using const_iterator = const value_type*;
 
-  constexpr ImageBase() noexcept : data_(nullptr), width_(0), height_(0) {}
+  constexpr ImageBase() noexcept
+      : data_(nullptr), width_(0), height_(0), is_owner_(true) {}
 
   /**
    * @brief Construct new ImageBase object of given width and
    * height, but with uninitialized values.
    */
   ImageBase(size_t width, size_t height)
-      : data_(new value_type[width * height]), width_(width), height_(height) {}
+      : data_(new value_type[width * height]),
+        width_(width),
+        height_(height),
+        is_owner_(true) {}
 
   /**
    * @brief Construct an new ImageBase object with given width and height, with
    * all values initialized to \c initial_value.
    */
   ImageBase(size_t width, size_t height, value_type initial_value)
-      : data_(new value_type[width * height]), width_(width), height_(height) {
+      : data_(new value_type[width * height]),
+        width_(width),
+        height_(height),
+        is_owner_(true) {
     std::fill(data_, data_ + width_ * height_, initial_value);
   }
 
@@ -101,25 +109,44 @@ class ImageBase {
    */
   ImageBase(size_t width, size_t height,
             std::initializer_list<NumT> initial_values)
-      : data_(new value_type[width * height]), width_(width), height_(height) {
+      : data_(new value_type[width * height]),
+        width_(width),
+        height_(height),
+        is_owner_(true) {
     assert(initial_values.size() == width * height);
     std::copy_n(initial_values.begin(), width_ * height_, data_);
   }
 
-  ~ImageBase() noexcept { delete[] data_; }
+  /**
+   * @brief Construct new ImageBase object and let it use an existing
+   * data array.
+   * The data array should be at least of size @p width * @p height.
+   * One use-case for this constructor is to let an Image use the
+   * data from a Python Numpy array.
+   */
+  ImageBase(value_type* data_pointer, size_t width, size_t height)
+      : data_(data_pointer), width_(width), height_(height), is_owner_(false) {}
+
+  ~ImageBase() noexcept {
+    if (is_owner_) {
+      delete[] data_;
+    }
+  }
 
   ImageBase(const ImageBase<NumT>& source)
       : data_(new value_type[source.width_ * source.height_]),
         width_(source.width_),
-        height_(source.height_) {
+        height_(source.height_),
+        is_owner_(true) {
     std::copy(source.data_, source.data_ + width_ * height_, data_);
   }
 
   ImageBase<NumT>& operator=(const ImageBase<NumT>& source) {
     if (width_ * height_ != source.width_ * source.height_) {
-      delete[] data_;
+      if (is_owner_) delete[] data_;
       // Make data_ robust against failure of "new" (e.g. due to out of mem
       // failures)
+      is_owner_ = true;
       data_ = nullptr;
       data_ = new value_type[source.width_ * source.height_];
     }
@@ -135,24 +162,37 @@ class ImageBase {
   }
 
   ImageBase<NumT>& Assign(const NumT* begin, const NumT* end) {
-    if (size_t(end - begin) != width_ * height_)
-      throw std::runtime_error("Invalid Assign()");
+    assert(size_t(end - begin) == width_ * height_);
     std::copy(begin, end, data_);
     return *this;
   }
 
   ImageBase(ImageBase<NumT>&& source) noexcept
-      : data_(source.data_), width_(source.width_), height_(source.height_) {
+      : data_(source.data_),
+        width_(source.width_),
+        height_(source.height_),
+        is_owner_(source.is_owner_) {
     source.width_ = 0;
     source.height_ = 0;
     source.data_ = nullptr;
+    source.is_owner_ = true;
   }
 
   ImageBase<NumT>& operator=(ImageBase<NumT>&& source) noexcept {
     std::swap(data_, source.data_);
     std::swap(width_, source.width_);
     std::swap(height_, source.height_);
+    std::swap(is_owner_, source.is_owner_);
     return *this;
+  }
+
+  bool operator==(const ImageBase<NumT>& rhs) const noexcept {
+    return width_ == rhs.width_ && height_ == rhs.height_ &&
+           std::equal(begin(), end(), rhs.begin());
+  }
+
+  bool operator!=(const ImageBase<NumT>& rhs) const noexcept {
+    return !(*this == rhs);
   }
 
   static std::unique_ptr<ImageBase<NumT>> Make(size_t width, size_t height) {
@@ -251,31 +291,11 @@ class ImageBase {
   }
 
   void Reset() {
-    delete[] data_;
+    if (is_owner_) delete[] data_;
     data_ = nullptr;
     width_ = 0;
     height_ = 0;
-  }
-
-  /** Cut-off the borders of an image.
-   * @param out_width Should be &lt;= in_width.
-   * @param out_height Should be &lt;= in_height.
-   */
-  static void Trim(value_type* output, size_t out_width, size_t out_height,
-                   const value_type* input, size_t in_width, size_t in_height) {
-    const size_t start_x = (in_width - out_width) / 2;
-    const size_t start_y = (in_height - out_height) / 2;
-    const size_t end_y = (in_height + out_height) / 2;
-    for (size_t y = start_y; y != end_y; ++y) {
-      std::copy_n(&input[y * in_width + start_x], out_width,
-                  &output[(y - start_y) * out_width]);
-    }
-  }
-
-  ImageBase<NumT> Trim(size_t out_width, size_t out_height) const {
-    ImageBase<NumT> image(out_width, out_height);
-    Trim(image.Data(), out_width, out_height, Data(), Width(), Height());
-    return image;
+    is_owner_ = true;
   }
 
   /**
@@ -300,7 +320,7 @@ class ImageBase {
   static void TrimBox(T* output, size_t x1, size_t y1, size_t box_width,
                       size_t box_height, const T* input, size_t in_width,
                       size_t in_height) {
-    size_t end_y = y1 + box_height;
+    size_t end_y = std::min(y1 + box_height, in_height);
     for (size_t y = y1; y != end_y; ++y) {
       std::copy_n(&input[y * in_width + x1], box_width,
                   &output[(y - y1) * box_width]);
@@ -350,10 +370,34 @@ class ImageBase {
     }
   }
 
-  /** Extend an image with zeros, complement of Trim.
-   * @param out_width Should be &gt;= in_width.
-   * @param out_height Should be &gt;= in_height.
+  // Even though Resize() also supports trimming, this function is performance
+  // critical. It therefore has a separate implementation, besides Resize().
+  static void Trim(value_type* output, size_t out_width, size_t out_height,
+                   const value_type* input, size_t in_width, size_t in_height) {
+    const size_t start_x = (in_width - out_width) / 2;
+    const size_t start_y = (in_height - out_height) / 2;
+    const size_t end_y = (in_height + out_height) / 2;
+    for (size_t y = start_y; y != end_y; ++y) {
+      std::copy_n(&input[y * in_width + start_x], out_width,
+                  &output[(y - start_y) * out_width]);
+    }
+  }
+
+  /**
+   * Cut-off the borders of an image.
+   * @param out_width New width. Should be &lt;= in_width.
+   * @param out_height New height. Should be &lt;= in_height.
+   * @return Trimmed image with the given width and height.
    */
+  [[nodiscard]] ImageBase<NumT> Trim(size_t out_width,
+                                     size_t out_height) const {
+    ImageBase<NumT> image(out_width, out_height);
+    Trim(image.Data(), out_width, out_height, Data(), Width(), Height());
+    return image;
+  }
+
+  // Even though Resize() also supports untrimming, this function is performance
+  // critical. It therefore has a separate implementation, besides Resize().
   static void Untrim(value_type* output, size_t out_width, size_t out_height,
                      const value_type* input, size_t in_width,
                      size_t in_height) {
@@ -378,9 +422,103 @@ class ImageBase {
     }
   }
 
-  ImageBase<NumT> Untrim(size_t out_width, size_t out_height) const {
+  /** Extend an image with zeros, complement of Trim.
+   * @param out_width New width. Should be &gt;= in_width.
+   * @param out_height New height. Should be &gt;= in_height.
+   * @return Untrimmed image with the given width and height.
+   */
+  [[nodiscard]] ImageBase<NumT> Untrim(size_t out_width,
+                                       size_t out_height) const {
     ImageBase<NumT> image(out_width, out_height);
     Untrim(image.Data(), out_width, out_height, Data(), Width(), Height());
+    return image;
+  }
+
+  /**
+   * Make a new image space with specified extra padding. Each side can be
+   * specified separately. The original image can be obtained using @ref
+   * TrimBox().
+   */
+  ImageBase<NumT> Pad(size_t left, size_t top, size_t right,
+                      size_t bottom) const {
+    const size_t result_width = width_ + left + right;
+    ImageBase<NumT> result(result_width, height_ + top + bottom);
+    float* result_iterator = std::fill_n(result.data_, top * result_width, 0.0);
+    const float* source_iterator = data_;
+    for (size_t y = 0; y != height_; ++y) {
+      result_iterator = std::fill_n(result_iterator, left, 0.0);
+      result_iterator = std::copy_n(source_iterator, width_, result_iterator);
+      result_iterator = std::fill_n(result_iterator, right, 0.0);
+      source_iterator += width_;
+    }
+    std::fill_n(result_iterator, bottom * result_width, 0.0);
+    return result;
+  }
+
+  static void Resize(value_type* output, size_t out_width, size_t out_height,
+                     const value_type* input, size_t in_width, size_t in_height,
+                     value_type fill = 0.0) {
+    size_t in_start_y = 0;          // Start position for reading input data.
+    size_t in_end_y = in_height;    // End position for reading input data.
+    size_t out_start_y = 0;         // Start position for writing output data.
+    size_t out_end_y = out_height;  // End position for writing output data.
+    if (out_height > in_height) {
+      // When the output image is larger than the input image, adjust the output
+      // positions and create top and bottom borders with zeroes in the output.
+      out_start_y = (out_height - in_height) / 2;
+      out_end_y = (out_height + in_height) / 2;
+      std::fill_n(output, out_width * out_start_y, fill);
+      std::fill_n(output + out_end_y * out_width,
+                  (out_height - out_end_y) * out_width, fill);
+    } else {
+      // When the output image is smaller than the input image, adjust the input
+      // positions.
+      in_start_y = (in_height - out_height) / 2;
+      in_end_y = (in_height + out_height) / 2;
+    }
+
+    const value_type* in_ptr = input + in_start_y * in_width;
+    value_type* out_ptr = output + out_start_y * out_width;
+
+    if (out_width > in_width) {
+      // Start and end positions for writing output data.
+      const size_t out_start_x = (out_width - in_width) / 2;
+      const size_t out_end_x = (out_width + in_width) / 2;
+
+      for (size_t y = in_start_y; y != in_end_y; ++y) {
+        // Create left border.
+        out_ptr = std::fill_n(out_ptr, out_start_x, fill);
+        // Copy data from the input image to the output image.
+        out_ptr = std::copy_n(in_ptr, in_width, out_ptr);
+        in_ptr += in_width;
+        // Create right border.
+        out_ptr = std::fill_n(out_ptr, out_width - out_end_x, fill);
+      }
+    } else {
+      // Start position for reading input data.
+      const size_t in_start_x = (in_width - out_width) / 2;
+      in_ptr += in_start_x;
+
+      for (size_t y = in_start_y; y != in_end_y; ++y) {
+        // Copy data from the input image to the output image.
+        out_ptr = std::copy_n(in_ptr, out_width, out_ptr);
+        in_ptr += in_width;
+      }
+    }
+  }
+
+  /**
+   * Resize an image by trimming and/or adding borders.
+   * @param out_width New width.
+   * @param out_height New height.
+   * @param fill Fill value, when extending the size. Default is zero.
+   * @return Resized image with the given width and height.
+   */
+  [[nodiscard]] ImageBase<NumT> Resize(size_t out_width, size_t out_height,
+                                       value_type fill = 0.0) const {
+    ImageBase<NumT> image(out_width, out_height);
+    Resize(image.Data(), out_width, out_height, Data(), Width(), Height(),
+           fill);
     return image;
   }
 
@@ -421,14 +559,17 @@ class ImageBase {
 
   void Serialize(aocommon::SerialOStream& stream) const {
     stream.UInt64(width_).UInt64(height_);
+    // it is not necessary to serialize is_owner_, because the unserialized
+    // class will always be owner.
     size_t n = sizeof(NumT) * width_ * height_;
     std::copy_n(reinterpret_cast<const unsigned char*>(data_), n,
                 stream.Chunk(n));
   }
   void Unserialize(aocommon::SerialIStream& stream) {
-    delete[] data_;
+    if (is_owner_) delete[] data_;
     // Make robust against stream failing
     data_ = nullptr;
+    is_owner_ = true;
     stream.UInt64(width_).UInt64(height_);
     if (width_ * height_ != 0) {
       data_ = new value_type[width_ * height_];
@@ -437,10 +578,20 @@ class ImageBase {
     std::copy_n(stream.Chunk(n), n, reinterpret_cast<unsigned char*>(data_));
   }
 
+  /**
+   * Replace all non-finite values by zero.
+   */
+  void RemoveNans() {
+    for (NumT& value : *this) {
+      if (!std::isfinite(value)) value = 0.0;
+    }
+  }
+
  private:
   value_type* data_;
   size_t width_;
   size_t height_;
+  bool is_owner_;
 
   static value_type MedianWithCopy(const value_type* data, size_t size,
                                    aocommon::UVector<value_type>& copy);

@@ -8,13 +8,12 @@
 #include "../options.h"
 #include "../griddedresponse/skamidgrid.h"
 #include "../pointresponse/skamidpoint.h"
-#include "../coords/coordutils.h"
 
 #include <aocommon/imagecoordinates.h>
 
 #include <casacore/ms/MeasurementSets/MSAntennaColumns.h>
 
-using everybeam::coords::CoordinateSystem;
+using aocommon::CoordinateSystem;
 using everybeam::griddedresponse::GriddedResponse;
 using everybeam::griddedresponse::SkaMidGrid;
 using everybeam::pointresponse::PointResponse;

@@ -107,6 +107,14 @@ class HMatrix4x4 {
   }
 
   /**
+   * Return the values that are on the diagonal. These are by definition
+   * real, because the matrix is Hermitian.
+   */
+  std::array<double, 4> DiagonalValues() const {
+    return {_data[0], _data[3], _data[8], _data[15]};
+  }
+
+  /**
    * Addition assignment operator
    */
   HMatrix4x4& operator+=(const HMatrix4x4& rhs) {
@@ -262,7 +270,7 @@ class HMatrix4x4 {
    * Get underlying data by index, where 0 <= index <= 15. This indexing
    * is used since the data is internally stored as 16 doubles. The diagonal
    * is real, and only the lower (complex) half is stored, in
-   * column-first order. The elements can therefore be index in
+   * column-first order. The elements can therefore be indexed in
    * the following way:
    *  0
    *  1  3
@@ -274,6 +282,12 @@ class HMatrix4x4 {
    */
   const double& Data(size_t index) const { return _data[index]; }
   double& Data(size_t index) { return _data[index]; }
+
+  /**
+   * Returns 0, 3, 8 and 15; the element indices of the diagonal
+   * entries.
+   */
+  constexpr static std::array<size_t, 4> kDiagonalIndices{0, 3, 8, 15};
 
  private:
   std::complex<double> ToComplex(size_t singleIndex) const {

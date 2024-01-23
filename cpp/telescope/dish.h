@@ -29,17 +29,17 @@ namespace telescope {
  * This class calculates the a-terms for dishes with a circularly symmetric
  * response.
  */
-class Dish final : public Telescope {
+class [[gnu::visibility("default")]] Dish final : public Telescope {
  public:
   Dish(const casacore::MeasurementSet& ms,
        std::unique_ptr<circularsymmetric::Coefficients> coefficients,
        const Options& options);
 
   std::unique_ptr<griddedresponse::GriddedResponse> GetGriddedResponse(
-      const coords::CoordinateSystem& coordinate_system) const override;
+      const aocommon::CoordinateSystem& coordinate_system) const override;
 
-  std::unique_ptr<pointresponse::PointResponse> GetPointResponse(
-      double time) const override;
+  std::unique_ptr<pointresponse::PointResponse> GetPointResponse(double time)
+      const override;
 
   /**
    * @brief Get (ra, dec) pointings of fields.

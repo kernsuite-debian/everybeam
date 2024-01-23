@@ -9,7 +9,7 @@ import numpy as np
 import warnings
 
 
-EVERYBEAM_BASE_URL = "http://www.astron.nl/citt/EveryBeam/"
+EVERYBEAM_BASE_URL = "https://support.astron.nl/software/ci_data/EveryBeam/"
 DATADIR = os.environ["DATA_DIR"]
 RASCIL_FITS = "test_primary_beam_RADEC_MID_512.fits"
 
@@ -53,7 +53,9 @@ def test_skamid_analytical(settings):
         from astropy.io import fits
     except:
         warnings.warn(
-            UserWarning("Could not import astropy, so fits image checks are skipped.")
+            UserWarning(
+                "Could not import astropy, so fits image checks are skipped."
+            )
         )
         return
 
@@ -76,7 +78,8 @@ def test_skamid_analytical(settings):
     # In rascil, the voltage pattern is multiplied with its complex conjugate - even though the voltage
     # pattern is real-valued.
     dimage = (
-        grid_response[..., 0, 0].flatten() * np.conj(grid_response[..., 0, 0].flatten())
+        grid_response[..., 0, 0].flatten()
+        * np.conj(grid_response[..., 0, 0].flatten())
         - rascil_response.flatten()
     )
     rms = np.sqrt(dimage.dot(dimage) / dimage.size)

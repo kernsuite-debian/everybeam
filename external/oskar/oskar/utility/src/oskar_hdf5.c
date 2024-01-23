@@ -92,7 +92,9 @@ int iter_func(hid_t loc_id, const char* name, const H5O_info_t* info,
 void oskar_hdf5_close(oskar_HDF5* h)
 {
     if (!h) return;
+    oskar_mutex_lock(h->mutex);
     h->refcount--;
+    oskar_mutex_unlock(h->mutex);
     if (h->refcount <= 0)
     {
         oskar_mutex_free(h->mutex);
@@ -106,9 +108,22 @@ void oskar_hdf5_close(oskar_HDF5* h)
 }
 
 
-void oskar_hdf5_inc_ref(oskar_HDF5* h)
+void oskar_hdf5_ref_inc(oskar_HDF5* h)
 {
+    if (!h) return;
+    oskar_mutex_lock(h->mutex);
     h->refcount++;
+    oskar_mutex_unlock(h->mutex);
+}
+
+
+int oskar_hdf5_dataset_exists(const oskar_HDF5* h, const char* name)
+{
+    for (int i = 0; i < h->num_datasets; ++i)
+    {
+        if (!strcmp(name, h->names[i])) return 1;
+    }
+    return 0;
 }
 
 
@@ -319,6 +334,70 @@ static void read_dims(const oskar_HDF5* h, const hid_t dataset,
     H5Sclose(dataspace);
 }
 #endif
+
+
+int oskar_hdf5_read_attribute_int(
+        const oskar_HDF5* h, const char* name, int* status)
+{
+    int value = 0;
+#ifdef OSKAR_HAVE_HDF5
+    if (*status || !h) return value;
+    oskar_mutex_lock(h->mutex);
+    const hid_t attribute = H5Aopen(h->file_id, name, H5P_DEFAULT);
+    const hid_t dataspace = H5Aget_space(attribute);
+    const hid_t datatype = H5Aget_type(attribute);
+    const size_t len = (size_t)H5Sget_simple_extent_npoints(dataspace);
+    if (len == 1 && H5Tget_class(datatype) == H5T_INTEGER)
+    {
+        H5Aread(attribute, H5T_NATIVE_INT, &value);
+    }
+    else
+    {
+        *status = OSKAR_ERR_BAD_DATA_TYPE;
+        oskar_log_error(0, "HDF5 attribute '%s' is not a single integer", name);
+    }
+    H5Aclose(attribute);
+    oskar_mutex_unlock(h->mutex);
+#else
+    (void)h;
+    (void)name;
+    *status = OSKAR_ERR_FUNCTION_NOT_AVAILABLE;
+    oskar_log_error(0, "OSKAR was compiled without HDF5 support.");
+#endif
+    return value;
+}
+
+
+double oskar_hdf5_read_attribute_double(
+        const oskar_HDF5* h, const char* name, int* status)
+{
+    double value = 0.0;
+#ifdef OSKAR_HAVE_HDF5
+    if (*status || !h) return value;
+    oskar_mutex_lock(h->mutex);
+    const hid_t attribute = H5Aopen(h->file_id, name, H5P_DEFAULT);
+    const hid_t dataspace = H5Aget_space(attribute);
+    const hid_t datatype = H5Aget_type(attribute);
+    const size_t len = (size_t)H5Sget_simple_extent_npoints(dataspace);
+    if (len == 1 && H5Tget_class(datatype) == H5T_FLOAT)
+    {
+        H5Aread(attribute, H5T_NATIVE_DOUBLE, &value);
+    }
+    else
+    {
+        *status = OSKAR_ERR_BAD_DATA_TYPE;
+        oskar_log_error(0, "HDF5 attribute '%s' is not a single float", name);
+    }
+    H5Aclose(attribute);
+    oskar_mutex_unlock(h->mutex);
+#else
+    (void)h;
+    (void)name;
+    *status = OSKAR_ERR_FUNCTION_NOT_AVAILABLE;
+    oskar_log_error(0, "OSKAR was compiled without HDF5 support.");
+#endif
+    return value;
+}
 
 
 void oskar_hdf5_read_attributes(const oskar_HDF5* h, const char* object_path,

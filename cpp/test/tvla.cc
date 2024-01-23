@@ -10,15 +10,14 @@
 #include "../pointresponse/dishpoint.h"
 #include "../elementresponse.h"
 #include "../telescope/dish.h"
-#include "../../external/npy.hpp"
 
 #include "config.h"
 #include <complex>
 #include <cmath>
 
+using aocommon::CoordinateSystem;
 using everybeam::Load;
 using everybeam::Options;
-using everybeam::coords::CoordinateSystem;
 using everybeam::griddedresponse::DishGrid;
 using everybeam::griddedresponse::GriddedResponse;
 using everybeam::pointresponse::DishPoint;
@@ -48,14 +47,15 @@ BOOST_AUTO_TEST_CASE(load_vla) {
   double ra(2.62880729), dec(0.02831797), dl(0.125 * M_PI / 180.),
       dm(0.125 * M_PI / 180.), shift_l(0.), shift_m(0.);
 
-  CoordinateSystem coord_system = {.width = width,
-                                   .height = height,
-                                   .ra = ra,
-                                   .dec = dec,
-                                   .dl = dl,
-                                   .dm = dm,
-                                   .phase_centre_dl = shift_l,
-                                   .phase_centre_dm = shift_m};
+  CoordinateSystem coord_system;
+  coord_system.width = width;
+  coord_system.height = height;
+  coord_system.ra = ra;
+  coord_system.dec = dec;
+  coord_system.dl = dl;
+  coord_system.dm = dm;
+  coord_system.l_shift = shift_l;
+  coord_system.m_shift = shift_m;
   std::unique_ptr<GriddedResponse> grid_response =
       telescope->GetGriddedResponse(coord_system);
   BOOST_CHECK(nullptr != dynamic_cast<DishGrid*>(grid_response.get()));
@@ -109,26 +109,23 @@ BOOST_AUTO_TEST_CASE(load_vla) {
   BOOST_CHECK(nullptr != dynamic_cast<DishPoint*>(point_response.get()));
 
   // Use ComputeAllStations (should be a repetitive call to CalculateStation)
-  std::complex<float> point_response_buffer[4 * telescope->GetNrStations()];
-  point_response->ResponseAllStations(everybeam::BeamMode::kFull,
-                                      point_response_buffer, coord_system.ra,
-                                      coord_system.dec, frequency, 0);
+  std::vector<std::complex<float>> point_response_buffer(
+      4 * telescope->GetNrStations());
+  point_response->ResponseAllStations(
+      everybeam::BeamMode::kFull, point_response_buffer.data(), coord_system.ra,
+      coord_system.dec, frequency, 0);
 
-  BOOST_CHECK_EQUAL_COLLECTIONS(point_response_buffer,
-                                point_response_buffer + 4,
+  BOOST_CHECK_EQUAL_COLLECTIONS(point_response_buffer.begin(),
+                                point_response_buffer.begin() + 4,
                                 antenna_buffer.begin() + offset_88,
                                 antenna_buffer.begin() + offset_88 + 4);
   // Check if point response equal for all stations
   for (size_t i = 0; i < telescope->GetNrStations(); ++i) {
-    BOOST_CHECK_EQUAL_COLLECTIONS(
-        point_response_buffer + i * 4, point_response_buffer + 4 * (i + 1),
-        point_response_buffer, point_response_buffer + 4);
+    BOOST_CHECK_EQUAL_COLLECTIONS(point_response_buffer.begin() + i * 4,
+                                  point_response_buffer.begin() + 4 * (i + 1),
+                                  point_response_buffer.begin(),
+                                  point_response_buffer.begin() + 4);
   }
-
-  // Print to np array, note: this spits out the transposed grid
-  const long unsigned leshape[] = {(long unsigned int)width, height, 2, 2};
-  npy::SaveArrayAsNumpy("vla_station_responses.npy", false, 4, leshape,
-                        antenna_buffer);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

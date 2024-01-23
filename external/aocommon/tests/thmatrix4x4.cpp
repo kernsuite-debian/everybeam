@@ -50,6 +50,26 @@ BOOST_AUTO_TEST_CASE(buffer) {
   CheckMatrix(unit.ToMatrix(), MC4x4::Unit());
 }
 
+BOOST_AUTO_TEST_CASE(diagonal_values) {
+  HMC4x4 matrix = HMC4x4::Unit();
+  std::array<double, 4> diagonal = matrix.DiagonalValues();
+
+  const std::array<double, 4> unit{1.0, 1.0, 1.0, 1.0};
+  BOOST_CHECK_EQUAL_COLLECTIONS(diagonal.begin(), diagonal.end(), unit.begin(),
+                                unit.end());
+
+  // 0,3,8,15 come from the ordering of the data inside the HMC4x4 matrix
+  // (see help for HCM4x4::Data()).
+  matrix.Data(0) = 12.0;
+  matrix.Data(3) = 13.0;
+  matrix.Data(8) = 14.0;
+  matrix.Data(15) = 15.0;
+  diagonal = matrix.DiagonalValues();
+  const std::array<double, 4> ref{12.0, 13.0, 14.0, 15.0};
+  BOOST_CHECK_EQUAL_COLLECTIONS(diagonal.begin(), diagonal.end(), ref.begin(),
+                                ref.end());
+}
+
 BOOST_AUTO_TEST_CASE(inversion) {
   HMC4x4 m1(HMC4x4::Unit());
   BOOST_CHECK(m1.Invert());

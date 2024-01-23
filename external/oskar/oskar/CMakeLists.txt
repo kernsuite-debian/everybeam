@@ -4,10 +4,15 @@
 
 include(oskar_build_macros)
 
+# Try to build MS library first.
+add_subdirectory(ms)
+if (NOT CASACORE_FOUND)
+    add_definitions(-DOSKAR_NO_MS)
+endif()
+
 # Build OSKAR sub-libraries.
 add_subdirectory(apps)
 add_subdirectory(binary)
-add_subdirectory(ms)
 add_subdirectory(settings)
 
 # Build OSKAR main library.
@@ -17,6 +22,7 @@ set(${libname}_folders
     convert
     correlate
     gains
+    harp
     imager
     interferometer
     log
@@ -61,8 +67,6 @@ endif()
 # Link with oskar_ms if we have casacore.
 if (CASACORE_FOUND)
     target_link_libraries(${libname} oskar_ms)
-else()
-    add_definitions(-DOSKAR_NO_MS)
 endif()
 
 # Link with HDF5 if we have it.
@@ -87,6 +91,15 @@ if (CUDA_FOUND)
         file(GLOB lib_cudart_ "${CUDA_TOOLKIT_ROOT_DIR}/bin/cudart64*")
         file(GLOB lib_cufft_ "${CUDA_TOOLKIT_ROOT_DIR}/bin/cufft64*")
         install(FILES ${lib_cudart_} ${lib_cufft_}
+            DESTINATION ${OSKAR_BIN_INSTALL_DIR} COMPONENT runtime)
+    endif()
+endif()
+
+# Link with HARP functions if available
+if (HARP_FOUND)
+    target_link_libraries(${libname} ${HARP_LIBRARY})
+    if (WIN32)
+        install(FILES ${HARP_DLL}
             DESTINATION ${OSKAR_BIN_INSTALL_DIR} COMPONENT runtime)
     endif()
 endif()

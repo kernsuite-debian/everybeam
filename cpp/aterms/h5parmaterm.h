@@ -6,13 +6,13 @@
 
 #include "atermbase.h"
 #include "cache.h"
-#include "../coords/coordutils.h"
 
 #include <complex>
 #include <map>
 #include <memory>
 #include <vector>
 
+#include <aocommon/coordinatesystem.h>
 #include <aocommon/uvector.h>
 #include <schaapcommon/h5parm/h5parm.h>
 #include <cassert>
@@ -162,10 +162,10 @@ class LagrangePolynomial {
  * has at least the following axes ("ant", "time", "dir"). The polynomial
  * coefficients are stored along the "dir" axis
  */
-class H5ParmATerm final : public ATermBase {
+class [[gnu::visibility("default")]] H5ParmATerm final : public ATermBase {
  public:
   H5ParmATerm(const std::vector<std::string>& station_names_ms,
-              const coords::CoordinateSystem& coordinate_system);
+              const aocommon::CoordinateSystem& coordinate_system);
 
   /**
    * @brief Read h5parm files given a vector of paths
@@ -185,8 +185,8 @@ class H5ParmATerm final : public ATermBase {
    * @return true Results are updated
    * @return false No need to update the result, cached result can be used
    */
-  bool Calculate(std::complex<float>* buffer, double time, double frequency,
-                 size_t field_id, const double* uvw_in_m) override final;
+  bool Calculate(std::complex<float> * buffer, double time, double frequency,
+                 size_t field_id, const double* uvw_in_m) override;
 
   /**
    * @brief Set the update interval
@@ -212,7 +212,7 @@ class H5ParmATerm final : public ATermBase {
 
   // Read coefficients from solution tab, for given
   // time index(frequency not relevant, as yet)
-  static void ReadCoeffs(schaapcommon::h5parm::SolTab& soltab,
+  static void ReadCoeffs(schaapcommon::h5parm::SolTab & soltab,
                          const std::string& station_name,
                          std::vector<float>& coeffs, hsize_t time_index);
 
@@ -223,7 +223,7 @@ class H5ParmATerm final : public ATermBase {
   // Store polynomial information
   std::unique_ptr<LagrangePolynomial> ampl_polynomial_;
   std::unique_ptr<LagrangePolynomial> phase_polynomial_;
-  coords::CoordinateSystem coordinate_system_;
+  aocommon::CoordinateSystem coordinate_system_;
 
   // Top level (i.e. ATermConfig) caching
   double update_interval_;

@@ -26,6 +26,21 @@ BOOST_AUTO_TEST_CASE(construct_from_array) {
   BOOST_CHECK_CLOSE(m[1].imag(), 0.0, 1e-6);
 }
 
+BOOST_AUTO_TEST_CASE(construct_from_initializer_list) {
+  const MC2x2Diag m0 = {1.0, 2.0};
+  BOOST_CHECK_EQUAL(m0[0].real(), 1.0);
+  BOOST_CHECK_EQUAL(m0[0].imag(), 0.0);
+  BOOST_CHECK_EQUAL(m0[1].real(), 2.0);
+  BOOST_CHECK_EQUAL(m0[1].imag(), 0.0);
+
+  const MC2x2Diag m1 = {std::complex<double>{1.0, 2.0},
+                        std::complex<double>{3.0, 4.0}};
+  BOOST_CHECK_EQUAL(m1[0].real(), 1.0);
+  BOOST_CHECK_EQUAL(m1[0].imag(), 2.0);
+  BOOST_CHECK_EQUAL(m1[1].real(), 3.0);
+  BOOST_CHECK_EQUAL(m1[1].imag(), 4.0);
+}
+
 BOOST_AUTO_TEST_CASE(copy_construct) {
   const MC2x2Diag source(std::complex<double>(3.0, 4.0),
                          std::complex<double>(5.0, 6.0));

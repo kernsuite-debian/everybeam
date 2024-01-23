@@ -10,7 +10,6 @@
 #include "../pointresponse/oskarpoint.h"
 #include "../beamnormalisationmode.h"
 #include "../elementresponse.h"
-#include "../../external/npy.hpp"
 #include "../telescope/oskar.h"
 
 #include "config.h"
@@ -22,13 +21,13 @@
 
 #include "../oskar/oskarelementresponse.h"
 
+using aocommon::CoordinateSystem;
 using everybeam::BeamMode;
 using everybeam::BeamNormalisationMode;
 using everybeam::ElementResponseModel;
 using everybeam::Load;
 using everybeam::Options;
 using everybeam::Station;
-using everybeam::coords::CoordinateSystem;
 using everybeam::griddedresponse::GriddedResponse;
 using everybeam::griddedresponse::OSKARGrid;
 using everybeam::pointresponse::OSKARPoint;
@@ -56,7 +55,7 @@ BOOST_AUTO_TEST_CASE(load_oskar) {
 
   // Assert if GetStation(stationd_id) behaves properly
   const OSKAR& oskartelescope = static_cast<const OSKAR&>(*telescope.get());
-  BOOST_CHECK_EQUAL(oskartelescope.GetStation(0)->GetName(), "s0000");
+  BOOST_CHECK_EQUAL(oskartelescope.GetStation(0).GetName(), "s0000");
 
   // Properties extracted from MS
   double time = 4.45353e+09;
@@ -67,14 +66,16 @@ BOOST_AUTO_TEST_CASE(load_oskar) {
   std::size_t width(16), height(16);
   double dl(0.5 * M_PI / 180.), dm(0.5 * M_PI / 180.), shift_l(0.), shift_m(0.);
 
-  CoordinateSystem coord_system = {.width = width,
-                                   .height = height,
-                                   .ra = ra,
-                                   .dec = dec,
-                                   .dl = dl,
-                                   .dm = dm,
-                                   .phase_centre_dl = shift_l,
-                                   .phase_centre_dm = shift_m};
+  aocommon::CoordinateSystem coord_system;
+  coord_system.width = width;
+  coord_system.height = height;
+  coord_system.ra = ra;
+  coord_system.dec = dec;
+  coord_system.dl = dl;
+  coord_system.dm = dm;
+  coord_system.l_shift = shift_l;
+  coord_system.m_shift = shift_m;
+
   // Get GriddedResponse pointer
   std::unique_ptr<GriddedResponse> grid_response =
       telescope->GetGriddedResponse(coord_system);
@@ -177,14 +178,16 @@ BOOST_AUTO_TEST_CASE(beam_normalisations) {
   std::size_t width(16), height(16);
   double dl(0.5 * M_PI / 180.), dm(0.5 * M_PI / 180.), shift_l(0.), shift_m(0.);
 
-  CoordinateSystem coord_system = {.width = width,
-                                   .height = height,
-                                   .ra = ra,
-                                   .dec = dec,
-                                   .dl = dl,
-                                   .dm = dm,
-                                   .phase_centre_dl = shift_l,
-                                   .phase_centre_dm = shift_m};
+  CoordinateSystem coord_system;
+  coord_system.width = width;
+  coord_system.height = height;
+  coord_system.ra = ra;
+  coord_system.dec = dec;
+  coord_system.dl = dl;
+  coord_system.dm = dm;
+  coord_system.l_shift = shift_l;
+  coord_system.m_shift = shift_m;
+
   // Get GriddedResponse pointer
   std::unique_ptr<GriddedResponse> grid_response =
       telescope->GetGriddedResponse(coord_system);

@@ -27,7 +27,7 @@ class PointResponse;
 namespace telescope {
 
 //! OSKAR telescope class
-class OSKAR final : public PhasedArray {
+class [[gnu::visibility("default")]] OSKAR final : public PhasedArray {
  public:
   /**
    * @brief Construct a new OSKAR object
@@ -38,10 +38,10 @@ class OSKAR final : public PhasedArray {
   OSKAR(const casacore::MeasurementSet& ms, const Options& options);
 
   std::unique_ptr<griddedresponse::GriddedResponse> GetGriddedResponse(
-      const coords::CoordinateSystem& coordinate_system) const override;
+      const aocommon::CoordinateSystem& coordinate_system) const override;
 
-  std::unique_ptr<pointresponse::PointResponse> GetPointResponse(
-      double time) const override;
+  std::unique_ptr<pointresponse::PointResponse> GetPointResponse(double time)
+      const override;
 
   //! Get the tile beam direction, equal to delay direction for OSKAR!
   virtual casacore::MDirection GetTileBeamDirection() const override {

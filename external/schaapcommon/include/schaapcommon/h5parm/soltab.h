@@ -69,7 +69,11 @@ class SolTab : private H5::Group {
   std::vector<double> GetRealAxis(const std::string& axis_name) const;
 
   /// Get the values of a string-valued axis (e.g. "dir" or "pol")
-  std::vector<std::string> GetStringAxis(const std::string& axis_name);
+  /// @param axis_name Axis name. Only "ant" and "dir" are supported.
+  /// @return The requested values, in their original order.
+  /// @throw std::runtime_error If the axis name is not supported.
+  const std::vector<std::string>& GetStringAxis(
+      const std::string& axis_name) const;
 
   /// Get the index of freq, using nearest neighbor.
   /// This function assumes that the frequencies are in increasing order.
@@ -81,8 +85,11 @@ class SolTab : private H5::Group {
   /// This assumes that all times are regularly spaced
   hsize_t GetTimeIndex(double time) const;
 
-  /// Get the index for a direction name
-  hsize_t GetDirIndex(const std::string& direction_name);
+  /// Get the index for an antenna name.
+  hsize_t GetAntIndex(const std::string& ant_name) const;
+
+  /// Get the index for a direction name.
+  hsize_t GetDirIndex(const std::string& direction_name) const;
 
   /// Gets the interval (in s.) between a time slot (default first) and
   /// the next. Throws error if there is only one time slot.
@@ -127,7 +134,7 @@ class SolTab : private H5::Group {
                                 unsigned int starttimeslot, unsigned int ntime,
                                 unsigned int timestep, unsigned int startfreq,
                                 unsigned int nfreq, unsigned int freqstep,
-                                unsigned int pol, unsigned int dir) {
+                                unsigned int pol, unsigned int dir) const {
     return GetValuesOrWeights("val", ant_name, starttimeslot, ntime, timestep,
                               startfreq, nfreq, freqstep, pol, dir);
   }
@@ -137,7 +144,7 @@ class SolTab : private H5::Group {
                                  unsigned int starttimeslot, unsigned int ntime,
                                  unsigned int timestep, unsigned int startfreq,
                                  unsigned int nfreq, unsigned int freqstep,
-                                 unsigned int pol, unsigned int dir) {
+                                 unsigned int pol, unsigned int dir) const {
     return GetValuesOrWeights("weight", ant_name, starttimeslot, ntime,
                               timestep, startfreq, nfreq, freqstep, pol, dir);
   }
@@ -147,7 +154,7 @@ class SolTab : private H5::Group {
   virtual std::vector<double> GetValuesOrWeights(
       const std::string& val_or_weight, const std::string& ant_name,
       const std::vector<double>& times, const std::vector<double>& freqs,
-      unsigned int pol, unsigned int dir, bool nearest);
+      unsigned int pol, unsigned int dir, bool nearest) const;
 
  private:
   static double TakeAbs(std::complex<double> c) { return std::abs(c); }
@@ -161,24 +168,29 @@ class SolTab : private H5::Group {
       const std::string& val_or_weight, const std::string& ant_name,
       unsigned int starttimeslot, unsigned int ntime, unsigned int timestep,
       unsigned int startfreq, unsigned int nfreq, unsigned int freqstep,
-      unsigned int pol, unsigned int dir);
+      unsigned int pol, unsigned int dir) const;
 
   void ReadAxes();
 
-  void FillCache(std::map<std::string, hsize_t>& cache,
-                 const std::string& table_name);
+  void FillCache(std::vector<std::string>& list,
+                 std::map<std::string, hsize_t>& map,
+                 const std::string& table_name) const;
 
   /// Get the interval of the axis axis_name
   double GetInterval(const std::string& axis_name, size_t start = 0) const;
-  hsize_t GetAntIndex(const std::string& ant_name);
-  hsize_t GetNamedIndex(std::map<std::string, hsize_t>& cache,
+  hsize_t GetNamedIndex(std::vector<std::string>& list,
+                        std::map<std::string, hsize_t>& map,
                         const std::string& table_name,
-                        const std::string& element_name);
+                        const std::string& element_name) const;
 
   std::string type_;
   std::vector<AxisInfo> axes_;
-  std::map<std::string, hsize_t> ant_map_;
-  std::map<std::string, hsize_t> dir_map_;
+
+  // The entries below are mutable since they implement caching.
+  mutable std::vector<std::string> ant_list_;
+  mutable std::vector<std::string> dir_list_;
+  mutable std::map<std::string, hsize_t> ant_map_;
+  mutable std::map<std::string, hsize_t> dir_map_;
 };
 }  // namespace h5parm
 }  // namespace schaapcommon

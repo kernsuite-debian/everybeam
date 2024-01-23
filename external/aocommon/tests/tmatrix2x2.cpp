@@ -1,7 +1,7 @@
-#include <boost/test/unit_test.hpp>
-
 #include <aocommon/matrix2x2.h>
 #include <aocommon/matrix2x2diag.h>
+
+#include <boost/test/unit_test.hpp>
 
 #include <iostream>
 
@@ -368,6 +368,28 @@ BOOST_AUTO_TEST_CASE(eigen_value_order2_complex) {
                              rhs2 = e1 * vec1[1];
   BOOST_CHECK_LT(std::abs(lhs1 - rhs1), 1e-5);
   BOOST_CHECK_LT(std::abs(lhs2 - rhs2), 1e-5);
+}
+
+BOOST_AUTO_TEST_CASE(construct_initializer_list) {
+  MC2x2 a = {1.0, 2.0, 3.0, 4.0};
+  BOOST_CHECK_EQUAL(a[0].real(), 1.0);
+  BOOST_CHECK_EQUAL(a[0].imag(), 0.0);
+  BOOST_CHECK_EQUAL(a[1].real(), 2.0);
+  BOOST_CHECK_EQUAL(a[1].imag(), 0.0);
+  BOOST_CHECK_EQUAL(a[2].real(), 3.0);
+  BOOST_CHECK_EQUAL(a[2].imag(), 0.0);
+  BOOST_CHECK_EQUAL(a[3].real(), 4.0);
+  BOOST_CHECK_EQUAL(a[3].imag(), 0.0);
+  MC2x2 b{std::complex<double>{1.0, 2.0}, std::complex<double>{3.0, 4.0},
+          std::complex<double>{5.0, 6.0}, std::complex<double>{7.0, 8.0}};
+  BOOST_CHECK_EQUAL(b[0].real(), 1.0);
+  BOOST_CHECK_EQUAL(b[0].imag(), 2.0);
+  BOOST_CHECK_EQUAL(b[1].real(), 3.0);
+  BOOST_CHECK_EQUAL(b[1].imag(), 4.0);
+  BOOST_CHECK_EQUAL(b[2].real(), 5.0);
+  BOOST_CHECK_EQUAL(b[2].imag(), 6.0);
+  BOOST_CHECK_EQUAL(b[3].real(), 7.0);
+  BOOST_CHECK_EQUAL(b[3].imag(), 8.0);
 }
 
 BOOST_AUTO_TEST_CASE(evdecomposition) {

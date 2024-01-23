@@ -14,7 +14,7 @@ namespace everybeam {
 namespace aterms {
 
 H5ParmATerm::H5ParmATerm(const std::vector<std::string>& station_names_ms,
-                         const coords::CoordinateSystem& coordinate_system)
+                         const aocommon::CoordinateSystem& coordinate_system)
     : station_names_ms_(station_names_ms),
       coordinate_system_(coordinate_system),
       update_interval_(0),
@@ -36,10 +36,10 @@ void H5ParmATerm::Open(const std::vector<std::string>& filenames) {
     amplitude_soltab_.push_back(h5parmfile.GetSolTab("amplitude_coefficients"));
     phase_soltab_.push_back(h5parmfile.GetSolTab("phase_coefficients"));
 
-    ampl_polynomial_ = std::unique_ptr<LagrangePolynomial>(
-        new LagrangePolynomial(amplitude_soltab_.back().GetAxis("dir").size));
-    phase_polynomial_ = std::unique_ptr<LagrangePolynomial>(
-        new LagrangePolynomial(phase_soltab_.back().GetAxis("dir").size));
+    ampl_polynomial_ = std::make_unique<LagrangePolynomial>(
+        amplitude_soltab_.back().GetAxis("dir").size);
+    phase_polynomial_ = std::make_unique<LagrangePolynomial>(
+        phase_soltab_.back().GetAxis("dir").size);
 
     // Check that antenna names in MS and h5parm match exactly
     std::vector<std::string> station_names_ampl =
@@ -82,7 +82,7 @@ void H5ParmATerm::Open(const std::vector<std::string>& filenames) {
 bool H5ParmATerm::Calculate(std::complex<float>* buffer, double time,
                             [[maybe_unused]] double frequency,
                             [[maybe_unused]] size_t field_id,
-                            [[maybe_unused]] const double* uvm_in_m) {
+                            [[maybe_unused]] const double* uvw_in_m) {
   const bool outdated = std::fabs(time - last_aterm_update_) > update_interval_;
   if (!outdated) return false;
   last_aterm_update_ = time;
@@ -109,8 +109,8 @@ bool H5ParmATerm::Calculate(std::complex<float>* buffer, double time,
             x, y, coordinate_system_.dl, coordinate_system_.dm,
             coordinate_system_.width, coordinate_system_.height, l, m);
 
-        l += coordinate_system_.phase_centre_dl;
-        m += coordinate_system_.phase_centre_dm;
+        l += coordinate_system_.l_shift;
+        m += coordinate_system_.m_shift;
 
         const size_t offset = station_offset + y * coordinate_system_.width + x;
         const std::complex<float> output =

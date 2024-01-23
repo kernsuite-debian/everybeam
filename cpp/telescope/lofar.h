@@ -27,7 +27,7 @@ class PointResponse;
 namespace telescope {
 
 //! LOFAR telescope class
-class LOFAR final : public PhasedArray {
+class [[gnu::visibility("default")]] LOFAR final : public PhasedArray {
  public:
   /**
    * @brief Construct a new LOFAR object
@@ -39,10 +39,10 @@ class LOFAR final : public PhasedArray {
   LOFAR(const casacore::MeasurementSet& ms, const Options& options);
 
   std::unique_ptr<griddedresponse::GriddedResponse> GetGriddedResponse(
-      const coords::CoordinateSystem& coordinate_system) const override;
+      const aocommon::CoordinateSystem& coordinate_system) const override;
 
-  std::unique_ptr<pointresponse::PointResponse> GetPointResponse(
-      double time) const override;
+  std::unique_ptr<pointresponse::PointResponse> GetPointResponse(double time)
+      const override;
 
  private:
   bool is_aartfaac_ = false;

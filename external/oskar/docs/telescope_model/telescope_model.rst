@@ -371,6 +371,38 @@ Station Data
   * **Allowed locations:** Station directory.
 
 
+Gain Data
+---------
+
+* ``gain_model.h5``
+
+  Externally-generated HDF5 file containing antenna or station gains, as
+  a function of time, frequency, antenna/station and polarisation.
+  This file may appear in any directory, but the size of the antenna or
+  station dimension in each file must correspond to the number of antennas
+  or stations in that directory.
+
+  * **See** :ref:`telescope_gain_model`
+
+  * **Required:** No.
+
+  * **Allowed locations:** All directories.
+
+
+HARP Data
+---------
+
+* ``*HARP*.h5``
+
+  HDF5 file containing HARP station beam coefficient data.
+
+  * **See** :ref:`telescope_harp`
+
+  * **Required:** No.
+
+  * **Allowed locations:** Station directory.
+
+
 Noise Configuration Files
 -------------------------
 * ``noise_frequencies.txt``
@@ -728,6 +760,93 @@ In order, the parameter columns are:
    1, "Azimuth coordinate of beam (local East from North) [deg]"
    2, "Elevation coordinate of beam (relative to local horizon) [deg]"
 
+
+.. raw:: latex
+
+    \clearpage
+
+.. _telescope_gain_model:
+
+Gain Model
+==========
+Externally-generated complex gains can be specified for the antennas in
+each station, and/or for each station in the interferometer, as a function
+of time, frequency and polarisation. If supplied, these complex gains must be
+written to a HDF5 file called ``gain_model.h5`` and saved in the appropriate
+station or telescope model directory. The HDF5 file must contain 3 datasets
+under the root group, with the following names and dimensions:
+
+* ``freq (Hz)`` is a 1-dimensional array containing a list of
+  frequencies (in Hz) for each channel in the gain table.
+  The length of this array must be the same as the channel dimension
+  in the following two arrays.
+
+* ``gain_xpol`` is a 3-dimensional array of complex gains for the
+  X-polarisation, with the three dimensions representing
+  (time, channel, antenna/station), where the time index is the slowest
+  varying, and the antenna or station index is the fastest varying.
+  Since HDF5 does not support complex types natively, each element of
+  this array must be a compound type of two floating-point values,
+  which represent the real and imaginary parts of the gain.
+  The time index in this array corresponds to the time index of each
+  snapshot in the simulation, so the gain table should be tailored to
+  the observation parameters.
+  The appropriate channel index will be selected using the list of frequencies,
+  by finding the nearest frequency in the table to the frequency of each
+  channel.
+  If the gain values do not vary with time or channel, the size of the
+  corresponding dimension should be set to 1.
+  The size of the antenna (or station) dimension **must** match the
+  number of antennas (or stations) specified in the layout file in the
+  same directory.
+
+* ``gain_ypol`` is the corresponding 3-dimensional array of complex gains
+  for the Y-polarisation. It may be omitted if running simulations in scalar
+  mode, or if the values should be the same for both polarisations.
+
+.. _telescope_harp:
+
+HARP Data
+=========
+When compiled with the ``harp_beam`` library, OSKAR can use coefficients
+exported by the HARP electromagnetic simulation package to evaluate station
+beams directly, without needing to first evaluate individual element patterns.
+This method of beam evaluation is generally much faster than other methods
+if mutual coupling needs to be taken into account.
+
+Inside each station directory, one or more HDF5 files containing the
+coefficients need to be supplied as a function of frequency. The filename
+must contain the word "HARP", and the last number in the filename will be
+interpreted as the frequency in MHz for which the coefficients apply.
+(For example, "HARP_100.h5" and "data_HARP_SKALA4_rand256_100MHz.h5" are
+equivalent.)
+
+The following attributes and datasets must be present inside each HDF5 file:
+
+* Attribute ``freq`` (floating-point): the simulated frequency in Hz.
+
+* Attribute ``num_ant`` (integer): the number of antennas in the station.
+
+* Attribute ``num_mbf`` (integer): the number of macro basis functions
+  per antenna.
+
+* Attribute ``max_order`` (integer): the maximum order of the spherical-wave
+  decomposition (SHD) of the MBF patterns.
+
+* Dataset ``alpha_te``: 2D complex matrix of size
+  (``num_mbf``, ``max_order`` * (2 * ``max_order`` + 1)) containing the
+  coefficients of the TE spherical modes of the MBF patterns.
+
+* Dataset ``alpha_tm``: As above, but for the TM modes.
+
+* Dataset ``coeffs_pola``: 2D complex matrix of size
+  (``num_ant``, ``num_mbf`` * ``num_ant``) containing the MBF coefficients of
+  each embedded element pattern, associated with the receiving port A (or X).
+
+* Dataset ``coeffs_polb``: As above, but for port B (or Y).
+
+If the station model directory has one of these HDF5 files, OSKAR will use
+the HARP beam evaluation method instead of the default one.
 
 .. raw:: latex
 

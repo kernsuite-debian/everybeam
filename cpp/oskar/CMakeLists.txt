@@ -22,7 +22,7 @@ target_include_directories(
 #------------------------------------------------------------------------------
 # Link against HDF5 and OpenMP
 target_link_libraries(oskar PUBLIC ${HDF5_LIBRARIES} ${HDF5_CXX_LIBRARIES}
-                                   ${OpenMP_CXX_FLAGS})
+                                   ${OpenMP_CXX_FLAGS} everybeam-core)
 target_link_libraries(oskar PRIVATE oskar_beam_utils)
 
 #------------------------------------------------------------------------------
