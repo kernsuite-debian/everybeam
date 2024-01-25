@@ -6,7 +6,9 @@ get_filename_component(MODULE ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 set(PUBLIC_HEADER_DIR ${SCHAAPCOMMON_SOURCE_DIR}/include/schaapcommon/${MODULE})
 
 set(PUBLIC_HEADERS
-    ${PUBLIC_HEADER_DIR}/gaussianfitter.h ${PUBLIC_HEADER_DIR}/nlplfitter.h
+    ${PUBLIC_HEADER_DIR}/gaussianfitter.h
+    ${PUBLIC_HEADER_DIR}/nlplfitter.h
+    ${PUBLIC_HEADER_DIR}/polynomialchannelfitter.h
     ${PUBLIC_HEADER_DIR}/polynomialfitter.h
     ${PUBLIC_HEADER_DIR}/spectralfitter.h)
 
@@ -14,6 +16,7 @@ target_sources(
   ${SCHAAPCOMMON_PROJECT_NAME}
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/gaussianfitter.cc
           ${CMAKE_CURRENT_SOURCE_DIR}/nlplfitter.cc
+          ${CMAKE_CURRENT_SOURCE_DIR}/polynomialchannelfitter.cc
           ${CMAKE_CURRENT_SOURCE_DIR}/polynomialfitter.cc
           ${CMAKE_CURRENT_SOURCE_DIR}/spectralfitter.cc)
 

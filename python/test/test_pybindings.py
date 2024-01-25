@@ -345,6 +345,12 @@ def test_lofar(ref, differential_beam):
         np.matmul(array_factor, element_response), response_1, rtol=1e-6
     )
 
+    # Check that is_local flag is propagated
+    element_response_local = telescope.element_response(
+        time, ref["station_id"], freq, ref["direction"], is_local=True
+    )
+    assert np.abs(element_response_local[0, 0] - element_response[0, 0]) > 0.01
+
 
 @pytest.mark.parametrize(
     "ref", [pytest.lazy_fixture("lba_setup"), pytest.lazy_fixture("hba_setup")]

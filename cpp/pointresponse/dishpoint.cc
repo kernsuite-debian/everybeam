@@ -14,7 +14,7 @@ void DishPoint::Response(BeamMode /* beam_mode */, std::complex<float>* buffer,
                          double ra, double dec, double freq,
                          size_t /* station_idx */, size_t field_id) {
   const telescope::Dish& dish_telescope =
-      static_cast<const telescope::Dish&>(*telescope_);
+      static_cast<const telescope::Dish&>(GetTelescope());
 
   double pdir_ra;
   double pdir_dec;
@@ -25,10 +25,10 @@ void DishPoint::Response(BeamMode /* beam_mode */, std::complex<float>* buffer,
       dish_telescope.GetDishCoefficients()->ReferenceFrequency();
   circularsymmetric::VoltagePattern vp(
       dish_telescope.GetDishCoefficients()->GetFrequencies(freq),
-      max_radius_arc_min, reference_frequency);
+      max_radius_arc_min);
   const aocommon::UVector<double> coefs_vec =
       dish_telescope.GetDishCoefficients()->GetCoefficients(freq);
-  vp.EvaluatePolynomial(coefs_vec,
+  vp.EvaluatePolynomial(coefs_vec, reference_frequency,
                         dish_telescope.GetDishCoefficients()->AreInverted());
   vp.Render(buffer, ra, dec, pdir_ra, pdir_dec, freq);
 }
@@ -39,7 +39,7 @@ void DishPoint::ResponseAllStations(BeamMode beam_mode,
   Response(beam_mode, buffer, ra, dec, freq, 0u, field_id);
 
   // Just repeat nstations times
-  for (size_t i = 1; i != telescope_->GetNrStations(); ++i) {
+  for (size_t i = 1; i != GetTelescope().GetNrStations(); ++i) {
     std::copy_n(buffer, 4, buffer + i * 4);
   }
 }

@@ -10,13 +10,12 @@
 
 namespace everybeam {
 namespace circularsymmetric {
-//! Holds the information for a symmetric voltage pattern
+//! Holds the information for a circularly symmetric voltage pattern
 class VoltagePattern {
  public:
   VoltagePattern(aocommon::UVector<double> frequencies,
-                 double maximum_radius_arc_min, double reference_frequency)
+                 double maximum_radius_arc_min)
       : maximum_radius_arc_min_(maximum_radius_arc_min),
-        reference_frequency_(reference_frequency),
         frequencies_(std::move(frequencies)){};
 
   size_t NSamples() const { return values_.size() / frequencies_.size(); }
@@ -26,15 +25,23 @@ class VoltagePattern {
   }
 
   void EvaluatePolynomial(const aocommon::UVector<double>& coefficients,
-                          bool invert);
+                          double reference_frequency, bool invert);
 
+  void EvaluateAiryDisk(double dish_diameter_in_m,
+                        double blocked_diameter_in_m);
+
+  /**
+   * Interpolate response onto a 2D grid.
+   */
   void Render(std::complex<float>* aterm, size_t width, size_t height,
               double pixel_scale_x, double pixel_scale_y,
               double phase_centre_ra, double phase_centre_dec,
               double pointing_ra, double pointing_dec, double phase_centre_dl,
               double phase_centre_dm, double frequency_hz) const;
 
-  // Specialization for single point
+  /**
+   * Interpolate response for a single point.
+   */
   void Render(std::complex<float>* aterm, double phase_centre_ra,
               double phase_centre_dec, double pointing_ra, double pointing_dec,
               double frequency_hz) const;
@@ -47,11 +54,8 @@ class VoltagePattern {
       double frequency_hz,
       aocommon::UVector<double>& interpolated_values) const;
 
-  double LmMaxSquared(double frequency_hz) const;
-
+  double maximum_radius_arc_min_;
   double inverse_increment_radius_;
-  const double maximum_radius_arc_min_;
-  const double reference_frequency_;
 
   // These are the radial (one-dimensional) values of the beam
   // It is an array of size nsamples x nfrequencies, where the sample index is

@@ -8,6 +8,7 @@
 
 #include <cmath>
 #include <fstream>
+#include <memory>
 #include <vector>
 
 namespace schaapcommon {
@@ -80,8 +81,11 @@ class DS9FacetFile {
    * set the pixel values (x, y) of the vertices, see
    * @ref Facet::CalculatePixelPositions().
    */
-  std::vector<Facet> Read() {
+  std::vector<Facet> Read(const Facet::InitializationData& data) {
     std::vector<Facet> facets;
+    std::vector<Coord> coordinates;
+    std::string direction_label;
+    std::optional<Coord> direction;
     while (Type() != TokenType::kEmpty) {
       std::string t = Token();
       if (t == "global" || t == "fk5") {
@@ -92,18 +96,34 @@ class DS9FacetFile {
         Skip();
 
         if (t == "polygon") {
-          facets.emplace_back();
-          ReadPolygon(facets.back());
-        } else if (t == "point" && !facets.empty()) {
-          ReadPoint(facets.back());
+          if (!coordinates.empty()) {
+            facets.emplace_back(data, std::move(coordinates),
+                                std::move(direction));
+            facets.back().SetDirectionLabel(direction_label);
+            direction.reset();
+          }
+          coordinates = ReadPolygon();
+          direction_label = ParseDirectionLabel(Type(), Token());
+        } else if (t == "point" && !coordinates.empty()) {
+          direction = ReadPoint();
         }
       }
     }
+
+    if (!coordinates.empty()) {
+      facets.emplace_back(data, std::move(coordinates), std::move(direction));
+      facets.back().SetDirectionLabel(direction_label);
+    }
+
     return facets;
   }
 
-  std::vector<std::shared_ptr<Facet>> ReadShared() {
+  std::vector<std::shared_ptr<Facet>> ReadShared(
+      const Facet::InitializationData& data) {
     std::vector<std::shared_ptr<Facet>> facets;
+    std::vector<Coord> coordinates;
+    std::string direction_label;
+    std::optional<Coord> direction;
     while (Type() != TokenType::kEmpty) {
       std::string t = Token();
       if (t == "global" || t == "fk5") {
@@ -114,14 +134,53 @@ class DS9FacetFile {
         Skip();
 
         if (t == "polygon") {
-          facets.emplace_back(std::make_shared<Facet>());
-          ReadPolygon(*facets.back());
-        } else if (t == "point" && !facets.empty()) {
-          ReadPoint(*facets.back());
+          if (!coordinates.empty()) {
+            facets.push_back(std::make_shared<Facet>(
+                data, std::move(coordinates), std::move(direction)));
+            facets.back()->SetDirectionLabel(direction_label);
+            direction.reset();
+          }
+          coordinates = ReadPolygon();
+          direction_label = ParseDirectionLabel(Type(), Token());
+        } else if (t == "point" && !coordinates.empty()) {
+          direction = ReadPoint();
         }
       }
     }
+
+    if (!coordinates.empty()) {
+      facets.push_back(std::make_shared<Facet>(data, std::move(coordinates),
+                                               std::move(direction)));
+      facets.back()->SetDirectionLabel(direction_label);
+    }
+
     return facets;
+  }
+
+  /**
+   * Count the number of facets in the file.
+   * @return The number of facets in the file.
+   */
+  size_t Count() {
+    size_t count = 0;
+    while (Type() != TokenType::kEmpty) {
+      std::string t = Token();
+      if (t == "global" || t == "fk5") {
+        SkipLine();
+      } else if (Type() == TokenType::kComment) {
+        Skip();
+      } else if (Type() == TokenType::kWord) {
+        Skip();
+        if (t == "polygon") {
+          ReadPolygon();
+          ++count;
+        } else if (t == "point") {
+          ReadPoint();
+        }
+      }
+    }
+
+    return count;
   }
 
   /**
@@ -146,32 +205,35 @@ class DS9FacetFile {
   }
 
  private:
-  void ReadPolygon(Facet& facet) {
-    std::vector<double> vals = ReadNumList();
+  std::vector<Coord> ReadPolygon() {
+    const std::vector<double> vals = ReadNumList();
     if (vals.size() % 2 != 0) {
       throw std::runtime_error(
           "Polygon is expecting an even number of numbers in its list");
     }
+    std::vector<Coord> coordinates;
+    coordinates.reserve(vals.size() / 2);
     auto i = vals.cbegin();
     while (i != vals.cend()) {
       const double ra = *i * (M_PI / 180.0);
       ++i;
       const double dec = *i * (M_PI / 180.0);
       ++i;
-      facet.AddVertex(ra, dec);
+      coordinates.emplace_back(ra, dec);
     }
 
-    facet.SetDirectionLabel(ParseDirectionLabel(Type(), Token()));
+    return coordinates;
   }
 
-  void ReadPoint(Facet& facet) {
-    std::vector<double> vals = ReadNumList();
+  Coord ReadPoint() {
+    const std::vector<double> vals = ReadNumList();
     if (vals.size() != 2) {
       throw std::runtime_error(
           "Point is expecting exactly two numbers in its list");
     }
-    facet.SetRA(vals[0] * (M_PI / 180.0));
-    facet.SetDec(vals[1] * (M_PI / 180.0));
+    const double ra = vals[0] * (M_PI / 180.0);
+    const double dec = vals[1] * (M_PI / 180.0);
+    return Coord(ra, dec);
   }
 
   std::vector<double> ReadNumList() {

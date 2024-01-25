@@ -7,8 +7,8 @@
 #include "../load.h"
 #include "../options.h"
 #include "../beammode.h"
-#include "../griddedresponse/lofargrid.h"
-#include "../pointresponse/lofarpoint.h"
+#include "../griddedresponse/phasedarraygrid.h"
+#include "../pointresponse/phasedarraypoint.h"
 #include "../elementresponse.h"
 #include "../station.h"
 #include "../common/types.h"
@@ -37,8 +37,8 @@ using everybeam::vector3r_t;
 using everybeam::aterms::ATermConfig;
 using everybeam::aterms::ParsetProvider;
 using everybeam::griddedresponse::GriddedResponse;
-using everybeam::griddedresponse::LOFARGrid;
-using everybeam::pointresponse::LOFARPoint;
+using everybeam::griddedresponse::PhasedArrayGrid;
+using everybeam::pointresponse::PhasedArrayPoint;
 using everybeam::pointresponse::PointResponse;
 using everybeam::telescope::LOFAR;
 using everybeam::telescope::Telescope;
@@ -183,8 +183,8 @@ BOOST_AUTO_TEST_CASE(element_response) {
 }
 
 BOOST_AUTO_TEST_CASE(gridded_response) {
-  BOOST_CHECK(nullptr != dynamic_cast<LOFARGrid*>(grid_response.get()));
-  BOOST_CHECK(nullptr != dynamic_cast<LOFARPoint*>(point_response.get()));
+  BOOST_CHECK(nullptr != dynamic_cast<PhasedArrayGrid*>(grid_response.get()));
+  BOOST_CHECK(nullptr != dynamic_cast<PhasedArrayPoint*>(point_response.get()));
 
   // Define buffer and get gridded responses
   std::vector<std::complex<float>> antenna_buffer_single(
@@ -291,42 +291,41 @@ BOOST_AUTO_TEST_CASE(gridded_response) {
 }
 
 BOOST_AUTO_TEST_CASE(point_response_caching) {
-  LOFARPoint& lofar_point = static_cast<LOFARPoint&>(*point_response.get());
-  BOOST_CHECK_EQUAL(lofar_point.HasTimeUpdate(), true);
+  BOOST_CHECK_EQUAL(point_response->HasTimeUpdate(), true);
 
   std::vector<std::complex<float>> point_buffer_1(4);
   const BeamMode beam_mode = BeamMode::kFull;
-  lofar_point.Response(beam_mode, point_buffer_1.data(), coord_system.ra,
-                       coord_system.dec, frequency, 23, 0);
+  point_response->Response(beam_mode, point_buffer_1.data(), coord_system.ra,
+                           coord_system.dec, frequency, 23, 0);
 
-  BOOST_CHECK_EQUAL(lofar_point.HasTimeUpdate(), false);
+  BOOST_CHECK_EQUAL(point_response->HasTimeUpdate(), false);
 
-  lofar_point.UpdateTime(time + 100);
-  BOOST_CHECK_EQUAL(lofar_point.HasTimeUpdate(), true);
-  lofar_point.Response(beam_mode, point_buffer_1.data(), coord_system.ra,
-                       coord_system.dec, frequency, 23, 0);
+  point_response->UpdateTime(time + 100);
+  BOOST_CHECK_EQUAL(point_response->HasTimeUpdate(), true);
+  point_response->Response(beam_mode, point_buffer_1.data(), coord_system.ra,
+                           coord_system.dec, frequency, 23, 0);
 
-  lofar_point.SetUpdateInterval(100);
-  BOOST_CHECK_EQUAL(lofar_point.HasTimeUpdate(), true);
+  point_response->SetUpdateInterval(100);
+  BOOST_CHECK_EQUAL(point_response->HasTimeUpdate(), true);
 
-  lofar_point.UpdateTime(time + 100);
-  lofar_point.Response(beam_mode, point_buffer_1.data(), coord_system.ra,
-                       coord_system.dec, frequency, 23, 0);
+  point_response->UpdateTime(time + 100);
+  point_response->Response(beam_mode, point_buffer_1.data(), coord_system.ra,
+                           coord_system.dec, frequency, 23, 0);
 
-  lofar_point.UpdateTime(time + 199);
-  BOOST_CHECK_EQUAL(lofar_point.HasTimeUpdate(), false);
+  point_response->UpdateTime(time + 199);
+  BOOST_CHECK_EQUAL(point_response->HasTimeUpdate(), false);
   std::vector<std::complex<float>> point_buffer_2(4);
-  lofar_point.Response(beam_mode, point_buffer_2.data(), coord_system.ra,
-                       coord_system.dec, frequency, 23, 0);
+  point_response->Response(beam_mode, point_buffer_2.data(), coord_system.ra,
+                           coord_system.dec, frequency, 23, 0);
 
   for (size_t i = 0; i != point_buffer_1.size(); ++i) {
     BOOST_CHECK_CLOSE(point_buffer_1[i], point_buffer_2[i], 1e-6);
   }
 
-  lofar_point.UpdateTime(time + 201);
-  BOOST_CHECK_EQUAL(lofar_point.HasTimeUpdate(), true);
-  lofar_point.Response(beam_mode, point_buffer_2.data(), coord_system.ra,
-                       coord_system.dec, frequency, 23, 0);
+  point_response->UpdateTime(time + 201);
+  BOOST_CHECK_EQUAL(point_response->HasTimeUpdate(), true);
+  point_response->Response(beam_mode, point_buffer_2.data(), coord_system.ra,
+                           coord_system.dec, frequency, 23, 0);
 
   for (size_t i = 0; i != point_buffer_1.size(); ++i) {
     BOOST_CHECK_PREDICATE(std::not_equal_to<std::complex<float>>(),

@@ -7,7 +7,7 @@ cmake_minimum_required(VERSION 3.8)
 
 #------------------------------------------------------------------------------
 # Set version name and project number
-set(EVERYBEAM_VERSION 0.5.2)
+set(EVERYBEAM_VERSION 0.5.3)
 if(EVERYBEAM_VERSION MATCHES "^([0-9]+)\\.([0-9]+)\\.([0-9]+)")
   set(EVERYBEAM_VERSION_MAJOR "${CMAKE_MATCH_1}")
   set(EVERYBEAM_VERSION_MINOR "${CMAKE_MATCH_2}")
@@ -23,6 +23,7 @@ option(BUILD_WITH_PYTHON "Build python bindings" OFF)
 option(BUILD_APT_PACKAGES "Build apt package" OFF)
 option(BUILD_TESTING "Build tests" OFF)
 option(DOWNLOAD_LOBES "Download and install LOBEs coefficient files" OFF)
+option(DOWNLOAD_LWA "Download and install OVRO-LWA coefficient file" OFF)
 
 string(TOLOWER ${CMAKE_PROJECT_NAME} projectname)
 

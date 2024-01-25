@@ -1,14 +1,14 @@
 // Copyright (C) 2022 ASTRON (Netherlands Institute for Radio Astronomy)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "../griddedresponse/griddedresponse.h"
+
 #include <boost/test/unit_test.hpp>
 #include <boost/test/tools/floating_point_comparison.hpp>
 
 #include "../load.h"
 #include "../options.h"
 #include "../beammode.h"
-#include "../griddedresponse/lofargrid.h"
-#include "../pointresponse/lofarpoint.h"
 #include "../elementresponse.h"
 #include "../station.h"
 #include "../common/types.h"
@@ -25,7 +25,6 @@
 
 using aocommon::CoordinateSystem;
 using everybeam::griddedresponse::GriddedResponse;
-using everybeam::griddedresponse::LOFARGrid;
 using everybeam::telescope::Telescope;
 
 BOOST_AUTO_TEST_SUITE(gridded_response)

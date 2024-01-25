@@ -5,7 +5,7 @@ fk5
 # The polygons below were created manually. They create areas around each of the image points.
 # The comments below contain the corresponding 0-based pixel coordinates.
 
-# The 'point' values are artifical values, for testing DS9FacetFile only.
+# The 'point' values are artificial values, for testing DS9FacetFile only.
 # These points are selected such that they coincide with one of the vertices that
 # are not located on the boundary.
 

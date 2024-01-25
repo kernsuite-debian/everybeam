@@ -5,6 +5,7 @@
 #include "gridinterpolate.h"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstdlib>
 #include <cmath>
@@ -48,12 +49,14 @@ SolTab::SolTab(H5::Group group, const std::string& type,
 
 SolTab::SolTab(H5::Group& group) : H5::Group(group) {
   // Read the type from the "TITLE" attribute
+  if (!attrExists("TITLE")) {
+    throw std::runtime_error("H5 attribute TITLE not found in " + GetName());
+  }
   H5::Attribute typeattr = openAttribute("TITLE");
   hsize_t typenamelen = typeattr.getDataType().getSize();
-  char typecstr[typenamelen + 1];
-  typecstr[typenamelen] = '\0';
-  typeattr.read(typeattr.getDataType(), &typecstr);
-  type_ = typecstr;
+  std::vector<char> type_chars(typenamelen + 1, '\0');
+  typeattr.read(typeattr.getDataType(), type_chars.data());
+  type_ = type_chars.data();
 
   ReadAxes();
 }
@@ -220,10 +223,9 @@ void SolTab::ReadAxes() {
   }
 
   hsize_t axesstrlen = axesattr.getDataType().getSize();
-  char axescstr[axesstrlen + 1];
-  axescstr[axesstrlen] = '\0';
-  axesattr.read(axesattr.getDataType(), &axescstr);
-  std::vector<std::string> axesnames = Tokenize(axescstr, ",");
+  std::vector<char> axes_chars(axesstrlen + 1, '\0');
+  axesattr.read(axesattr.getDataType(), axes_chars.data());
+  std::vector<std::string> axesnames = Tokenize(axes_chars.data(), ",");
 
   unsigned int ndims = axesnames.size();
 
@@ -236,8 +238,8 @@ void SolTab::ReadAxes() {
         ") does not match number of axes in metadata (" +
         std::to_string(int(ndims)) + ")");
   }
-  hsize_t dims_out[ndims];
-  ds.getSimpleExtentDims(dims_out);
+  std::vector<hsize_t> dims_out(ndims, 0);
+  ds.getSimpleExtentDims(dims_out.data());
 
   for (unsigned int i = 0; i < axesnames.size(); ++i) {
     AxisInfo a{axesnames[i], static_cast<unsigned int>(dims_out[i])};
@@ -358,46 +360,53 @@ std::vector<double> SolTab::GetValuesOrWeights(
   H5::DataSet val = openDataSet(val_or_weight);
 
   // Set offsets and strides
-  hsize_t memdims[axes_.size()];
-  hsize_t offset[axes_.size()];
-  hsize_t count[axes_.size()];
-  hsize_t stride[axes_.size()];
+  std::vector<hsize_t> memdims;
+  std::vector<hsize_t> offsets;
+  std::vector<hsize_t> counts;
+  std::vector<hsize_t> strides;
+  memdims.reserve(axes_.size());
+  offsets.reserve(axes_.size());
+  counts.reserve(axes_.size());
+  strides.reserve(axes_.size());
 
-  for (unsigned int i = 0; i < axes_.size(); ++i) {
-    stride[i] = 1;
-    count[i] = 1;
-    memdims[i] = 1;
-    if (axes_[i].name == "time") {
-      offset[i] = starttimeslot;
-      stride[i] = timestep;
-      count[i] = ntime;
-      memdims[i] = ntime;
-    } else if (axes_[i].name == "freq") {
-      offset[i] = startfreq;
-      stride[i] = freqstep;
-      count[i] = nfreq;
-      memdims[i] = nfreq;
-    } else if (axes_[i].name == "ant") {
-      offset[i] = GetAntIndex(ant_name);
-    } else if (axes_[i].name == "dir") {
-      offset[i] = dir;
-    } else if (axes_[i].name == "pol") {
-      offset[i] = pol;
-    } else {
-      if (axes_[i].size != 1) {
-        throw std::runtime_error("Axis \"" + axes_[i].name +
-                                 "\" in H5Parm is not understood");
-      }
-      offset[i] = 0;
+  for (const AxisInfo& axis_info : axes_) {
+    hsize_t stride = 1;
+    hsize_t count = 1;
+    hsize_t memdim = 1;
+    hsize_t offset = 0;
+    if (axis_info.name == "time") {
+      offset = starttimeslot;
+      stride = timestep;
+      count = ntime;
+      memdim = ntime;
+    } else if (axis_info.name == "freq") {
+      offset = startfreq;
+      stride = freqstep;
+      count = nfreq;
+      memdim = nfreq;
+    } else if (axis_info.name == "ant") {
+      offset = GetAntIndex(ant_name);
+    } else if (axis_info.name == "dir") {
+      offset = dir;
+    } else if (axis_info.name == "pol") {
+      offset = pol;
+    } else if (axis_info.size != 1) {
+      throw std::runtime_error("Axis \"" + axis_info.name +
+                               "\" in H5Parm is not understood");
     }
+    memdims.push_back(memdim);
+    offsets.push_back(offset);
+    counts.push_back(count);
+    strides.push_back(stride);
   }
 
   H5::DataSpace dataspace = val.getSpace();
 
-  dataspace.selectHyperslab(H5S_SELECT_SET, count, offset, stride);
+  dataspace.selectHyperslab(H5S_SELECT_SET, counts.data(), offsets.data(),
+                            strides.data());
 
   // Setup memory dataspace
-  H5::DataSpace memspace(axes_.size(), memdims);
+  H5::DataSpace memspace(axes_.size(), memdims.data());
   try {
     val.read(res.data(), H5::PredType::NATIVE_DOUBLE, memspace, dataspace);
   } catch (H5::DataSetIException& e) {
@@ -409,26 +418,36 @@ std::vector<double> SolTab::GetValuesOrWeights(
 
 void SolTab::SetAntennas(const std::vector<std::string>& sol_antennas) {
   // TODO: check that antenna is present in antenna table in solset
-  hsize_t dims[1];
-  dims[0] = sol_antennas.size();
+  std::array<hsize_t, 1> dimensions{{sol_antennas.size()}};
 
   size_t str_max_length = 1;
   for (const std::string& name : sol_antennas) {
     str_max_length = std::max(str_max_length, name.length());
   }
 
+  if (nameExists("ant")) unlink("ant");
+
   // Create dataset
-  H5::DataSpace dataspace(1, dims, nullptr);
-  H5::DataSet dataset = createDataSet(
-      "ant", H5::StrType(H5::PredType::C_S1, str_max_length), dataspace);
+  H5::DataSpace dataspace(dimensions.size(), dimensions.data(), nullptr);
+  H5::DataType datatype = H5::StrType(H5::PredType::C_S1, str_max_length);
+  H5::DataSet dataset = createDataSet("ant", datatype, dataspace);
 
   // Prepare data
-  char ant_array[sol_antennas.size()][str_max_length];
-  for (unsigned int i = 0; i < sol_antennas.size(); ++i) {
-    strncpy(ant_array[i], sol_antennas[i].c_str(), str_max_length);
+  std::vector<char> ant_array(sol_antennas.size() * str_max_length);
+  char* ant_array_position = ant_array.data();
+  for (const std::string& antenna_name : sol_antennas) {
+    strncpy(ant_array_position, antenna_name.c_str(), str_max_length);
+    ant_array_position += str_max_length;
   }
 
-  dataset.write(ant_array, H5::StrType(H5::PredType::C_S1, str_max_length));
+  dataset.write(ant_array.data(), datatype);
+
+  // Update cache
+  ant_list_ = sol_antennas;
+  ant_map_.clear();
+  for (size_t i = 0; i < sol_antennas.size(); ++i) {
+    ant_map_[sol_antennas[i]] = i;
+  }
 }
 
 void SolTab::SetAxisMeta(const std::string& meta_name, size_t num_char,
@@ -443,12 +462,14 @@ void SolTab::SetAxisMeta(const std::string& meta_name, size_t num_char,
 
   if (meta_vals.size() > 0) {
     // Prepare data
-    char src_array[meta_vals.size()][num_char];
-    for (unsigned int i = 0; i < meta_vals.size(); ++i) {
-      strncpy(src_array[i], meta_vals[i].c_str(), num_char);
+    std::vector<char> src_array(meta_vals.size() * num_char);
+    char* src_array_position = src_array.data();
+    for (const std::string& meta_value : meta_vals) {
+      strncpy(src_array_position, meta_value.c_str(), num_char);
+      src_array_position += num_char;
     }
 
-    dataset.write(src_array, H5::StrType(H5::PredType::C_S1, num_char));
+    dataset.write(src_array.data(), H5::StrType(H5::PredType::C_S1, num_char));
   }
 }
 

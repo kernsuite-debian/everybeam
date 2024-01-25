@@ -200,6 +200,30 @@ void GriddedResponse::MakeIntegratedSnapshot(
   }
 }
 
+void GriddedResponse::HomogeneousAllStationResponse(BeamMode beam_mode,
+                                                    std::complex<float>* buffer,
+                                                    double time,
+                                                    double frequency,
+                                                    size_t field_id) {
+  Response(beam_mode, buffer, time, frequency, 0, field_id);
+
+  const size_t station_buffer = width_ * height_ * 4;
+  // Repeat nstations times
+  for (size_t i = 1; i != telescope_->GetNrStations(); ++i) {
+    std::copy_n(buffer, station_buffer, buffer + i * station_buffer);
+  }
+}
+
+void GriddedResponse::InhomogeneousAllStationResponse(
+    BeamMode beam_mode, std::complex<float>* buffer, double time,
+    double frequency, size_t field_id) {
+  const size_t station_buffer_size = width_ * height_ * 4;
+  for (size_t i = 0; i != telescope_->GetNrStations(); ++i) {
+    Response(beam_mode, buffer, time, frequency, i, field_id);
+    buffer += station_buffer_size;
+  }
+}
+
 void GriddedResponse::DoFFTResampling(
     float* destination, int width_in, int height_in, int width_out,
     int height_out, const std::vector<aocommon::HMC4x4>& matrices) {

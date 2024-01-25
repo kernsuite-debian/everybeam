@@ -7,14 +7,15 @@
 #ifndef EVERYBEAM_POINTRESPONSE_POINTRESPONSE_H_
 #define EVERYBEAM_POINTRESPONSE_POINTRESPONSE_H_
 
+#include <algorithm>
 #include <complex>
 #include <mutex>
 
-#include "../common/types.h"
-#include "../telescope/telescope.h"
-
 #include <aocommon/matrix2x2diag.h>
 #include <aocommon/matrix2x2.h>
+
+#include "../common/types.h"
+#include "../telescope/telescope.h"
 
 namespace everybeam {
 namespace pointresponse {
@@ -53,7 +54,7 @@ class PointResponse {
   }
 
   /**
-   * @brief Check whether cached time settings have changed
+   * @return Whether cached time settings have changed.
    */
   bool HasTimeUpdate() const { return has_time_update_; }
 
@@ -136,6 +137,30 @@ class PointResponse {
         update_interval_(0),
         has_time_update_(true){};
 
+  const telescope::Telescope& GetTelescope() const { return *telescope_; }
+
+  /**
+   * @return Time used for calculating the response, in seconds.
+   */
+  double GetTime() const { return time_; }
+
+  double GetIntervalMidPoint() const { return time_ + 0.5 * update_interval_; }
+
+  void ClearTimeUpdate() { has_time_update_ = false; }
+
+  void HomogeneousAllStationsResponse(BeamMode beam_mode,
+                                      std::complex<float>* buffer, double ra,
+                                      double dec, double freq,
+                                      size_t field_id) {
+    Response(beam_mode, buffer, ra, dec, freq, 0, field_id);
+
+    // Repeat the same response for all other stations
+    for (size_t i = 1; i != telescope_->GetNrStations(); ++i) {
+      std::copy_n(buffer, 4, buffer + i * 4);
+    }
+  }
+
+ private:
   const telescope::Telescope* telescope_;
   double time_;
   double update_interval_;

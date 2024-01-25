@@ -44,7 +44,7 @@ template <typename T, size_t Dimensions>
  * @tparam Dimensions Number of dimensions in the view.
  * @param vector The underlying vector with elements.
  * @param shape The shape for the view. It must match the vector's size.
- * @return A view of the vector with modifyable elements.
+ * @return A view of the vector with modifiable elements.
  */
 template <typename T, size_t Dimensions>
 [[nodiscard]] Span<T, Dimensions> CreateSpan(
@@ -58,7 +58,7 @@ template <typename T, size_t Dimensions>
  * @tparam Dimensions Number of dimensions in the view.
  * @param vector The underlying vector with elements.
  * @param shape The shape for the view. It must match the vector's size.
- * @return A view of the vector with non-modifyable elements.
+ * @return A view of the vector with non-modifiable elements.
  */
 template <typename T, size_t Dimensions>
 [[nodiscard]] Span<const T, Dimensions> CreateSpan(
@@ -77,7 +77,7 @@ void CreateSpan(std::vector<T>&& vector,
  * Creates a Span from an xtensor or UTensor object.
  * @tparam TensorType xtensor or UTensor type.
  * @param tensor The underlying xtensor object.
- * @return A view of the tensor with modifyable elements.
+ * @return A view of the tensor with modifiable elements.
  */
 template <typename TensorType>
 [[nodiscard]] Span<typename TensorType::value_type, TensorType::rank>
@@ -89,7 +89,7 @@ CreateSpan(TensorType& tensor) {
  * Creates a Span from a const xtensor or const UTensor object.
  * @tparam TensorType xtensor or UTensor type.
  * @param tensor The underlying xtensor object.
- * @return A view of the tensor with non-modifyable elements.
+ * @return A view of the tensor with non-modifiable elements.
  */
 template <typename TensorType>
 [[nodiscard]] Span<const typename TensorType::value_type, TensorType::rank>

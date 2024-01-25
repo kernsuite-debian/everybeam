@@ -8,7 +8,7 @@
 #include "../load.h"
 #include "../beammode.h"
 #include "../options.h"
-#include "../griddedresponse/lofargrid.h"
+#include "../griddedresponse/phasedarraygrid.h"
 #include "../elementresponse.h"
 #include "../station.h"
 #include "../common/types.h"
@@ -26,7 +26,7 @@ using everybeam::Options;
 using everybeam::Station;
 using everybeam::vector3r_t;
 using everybeam::griddedresponse::GriddedResponse;
-using everybeam::griddedresponse::LOFARGrid;
+using everybeam::griddedresponse::PhasedArrayGrid;
 using everybeam::telescope::LOFAR;
 using everybeam::telescope::Telescope;
 
@@ -100,7 +100,7 @@ BOOST_AUTO_TEST_CASE(test_hamaker) {
   // Gridded response
   std::unique_ptr<GriddedResponse> grid_response =
       telescope->GetGriddedResponse(coord_system);
-  BOOST_CHECK(nullptr != dynamic_cast<LOFARGrid*>(grid_response.get()));
+  BOOST_CHECK(nullptr != dynamic_cast<PhasedArrayGrid*>(grid_response.get()));
 
   // Define buffer and get gridded responses
   std::vector<std::complex<float>> antenna_buffer_single(

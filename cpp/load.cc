@@ -3,8 +3,10 @@
 
 #include "load.h"
 
-#include "telescope/lofar.h"
+#include "telescope/alma.h"
 #include "telescope/dish.h"
+#include "telescope/lofar.h"
+#include "telescope/lwa.h"
 #include "telescope/mwa.h"
 #include "telescope/oskar.h"
 #include "telescope/skamid.h"
@@ -33,6 +35,8 @@ TelescopeType GetTelescopeType(const casacore::MeasurementSet& ms) {
     return kAARTFAAC;
   } else if (telescope_name.compare(0, 4, "ATCA") == 0) {
     return kATCATelescope;
+  } else if (telescope_name == "ALMA") {
+    return kALMATelescope;
   } else if (telescope_name.compare(0, 4, "EVLA") == 0) {
     return kVLATelescope;
   } else if (telescope_name == "GMRT") {
@@ -48,6 +52,8 @@ TelescopeType GetTelescopeType(const casacore::MeasurementSet& ms) {
     // check if telescope_name starts with "OSKAR"
   } else if (telescope_name.rfind("OSKAR", 0) == 0) {
     return kOSKARTelescope;
+  } else if (telescope_name == "OVRO_MMA" || telescope_name == "OVRO_LWA") {
+    return kOvroLwaTelescope;
   } else {
     return kUnknownTelescope;
   }
@@ -61,6 +67,9 @@ std::unique_ptr<telescope::Telescope> Load(const casacore::MeasurementSet& ms,
     case kAARTFAAC:
     case kLofarTelescope:
       telescope = std::make_unique<telescope::LOFAR>(ms, options);
+      break;
+    case kALMATelescope:
+      telescope = std::make_unique<telescope::Alma>(ms, options);
       break;
     case kATCATelescope: {
       auto coefs = std::make_unique<circularsymmetric::ATCACoefficients>();
@@ -90,6 +99,9 @@ std::unique_ptr<telescope::Telescope> Load(const casacore::MeasurementSet& ms,
       auto coefs = std::make_unique<circularsymmetric::VLACoefficients>("");
       telescope =
           std::make_unique<telescope::Dish>(ms, std::move(coefs), options);
+    } break;
+    case kOvroLwaTelescope: {
+      telescope = std::make_unique<telescope::Lwa>(ms, options);
     } break;
     default:
       casacore::ScalarColumn<casacore::String> telescope_name_col(

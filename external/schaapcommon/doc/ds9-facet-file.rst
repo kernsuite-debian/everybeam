@@ -1,7 +1,7 @@
 DS9 region file
 ===============
 
-The tessellation of an image into polygon-shaped geometries - coined facets - can be controlled with a DS9 region file.
+The tessellation of an image into polygon-shaped geometries — named facets — can be controlled with a DS9 region file.
 The generic region file format is documented at http://ds9.si.edu/doc/ref/region.html, this pages describes which subset
 of the region file can be parsed by `WSClean <https://gitlab.com/aroffringa/wsclean>`_ and `DP3 <https://git.astron.nl/RD/DP3/>`_ for the specific use case of
 tessellating the sky for direction-dependent calibration.

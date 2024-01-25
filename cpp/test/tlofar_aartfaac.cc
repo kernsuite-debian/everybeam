@@ -293,8 +293,8 @@ BOOST_AUTO_TEST_CASE(point_response_lobes, *boost::unit_test::tolerance(1e-8)) {
 
     const aocommon::MC2x2 response_lofar = point_lofar.ElementResponse(
         lofar_station, kFrequency, kDirection, lofar_element);
-    const aocommon::MC2x2 response_aartfaac =
-        point_aartfaac.ElementResponse(i, kFrequency, kDirection, 0);
+    const aocommon::MC2x2 response_aartfaac = point_aartfaac.ElementResponse(
+        i, kFrequency, kDirection, lofar_element);
 
     BOOST_CHECK_EQUAL(response_lofar[0], response_aartfaac[0]);
     BOOST_CHECK_EQUAL(response_lofar[1], response_aartfaac[1]);

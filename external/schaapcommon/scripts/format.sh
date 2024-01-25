@@ -10,6 +10,7 @@
 #                 These paths are relative to SOURCE_DIR.
 # - CXX_SOURCES: Patterns of the C++ files, which clang-format should format.
 # - CMAKE_SOURCES: Patterns of the CMake files, which cmake-format should format.
+# - PYTHON_SOURCES: Patterns of the Python files, which black should format.
 #
 # A repository that uses format.sh should define its own run-format.sh script
 # that defines these variables and then sources this script.
@@ -21,10 +22,13 @@
 set -e -f
 
 # Check arguments
-if [ -z "$SOURCE_DIR" -o -z "$CXX_SOURCES" -o -z "$CMAKE_SOURCES" ]; then
-  echo "Please define SOURCE_DIR, CXX_SOURCES and CMAKE_SOURCES when using $BASH_SOURCE"
+if [ -z "$SOURCE_DIR" ]; then
+  echo "Please define SOURCE_DIR using $BASH_SOURCE"
   exit 1
 fi
+if [ -z "$CXX_SOURCES" ]; then CXX_SOURCES=(*.cc *.cpp *.h *.hpp); fi
+if [ -z "$CMAKE_SOURCES" ]; then CMAKE_SOURCES=(CMakeLists.txt *.cmake); fi
+if [ -z "$PYTHON_SOURCES" ]; then PYTHON_SOURCES=(*.py); fi
 
 # Detect run environment.
 if [ -n "$CI" ]; then
@@ -47,6 +51,11 @@ for i in `seq 1 $((${#CMAKE_SOURCES[*]} - 1))`; do
   CMAKE_FIND_NAMES+=" -o -name ${CMAKE_SOURCES[$i]}"
 done
 
+PYTHON_FIND_NAMES="-name ${PYTHON_SOURCES[0]}"
+for i in `seq 1 $((${#PYTHON_SOURCES[*]} - 1))`; do
+  PYTHON_FIND_NAMES+=" -o -name ${PYTHON_SOURCES[$i]}"
+done
+
 # Convert EXCLUDE_DIRS into "-path ./dir1 -prune -o -path ./dir2 -prune -o ..."
 FIND_EXCLUDES=
 for e in ${EXCLUDE_DIRS[*]}; do
@@ -56,23 +65,33 @@ done
 cd $SOURCE_DIR
 CXX_FILES=$(find . $FIND_EXCLUDES -type f \( $CXX_FIND_NAMES \) -print)
 CMAKE_FILES=$(find . $FIND_EXCLUDES -type f \( $CMAKE_FIND_NAMES \) -print)
+PYTHON_FILES=$(find . $FIND_EXCLUDES -type f \( $PYTHON_FIND_NAMES \) -print)
+
+# Use line length 79, which complies with PEP-8.
+BLACK="black -l 79"
+
+if [[ "${CLANG_FORMAT_BINARY}" == "" ]] ; then
+    CLANG_FORMAT_BINARY="clang-format"
+fi
 
 if [ -n "$DRYRUN" ]; then
   # If the clang-format xml has no replacement entries, all files are formatted.
-  if !(clang-format -style=file --output-replacements-xml $CXX_FILES |
-       grep -q "<replacement ") && cmake-format --check $CMAKE_FILES; then
+  if !(${CLANG_FORMAT_BINARY} -style=file --output-replacements-xml $CXX_FILES |
+       grep -q "<replacement ") &&
+       cmake-format --check $CMAKE_FILES &&
+       $BLACK --check $PYTHON_FILES; then
     # print in bold-face green
     echo -e "\e[1m\e[32mGreat job, all files are properly formatted!\e[0m"
-    exit 0;
   else
     # Print in bold-face red
     echo -e "\e[1m\e[31mAt least one file is not properly formatted!\e[0m"
     echo -e "\e[1m\e[31mRun $0 for formatting all files!\e[0m"
-    exit 1;
+    exit 1
   fi
 else
-  clang-format -i -style=file $CXX_FILES
+  ${CLANG_FORMAT_BINARY} -i -style=file $CXX_FILES
   cmake-format -i $CMAKE_FILES
+  $BLACK -q $PYTHON_FILES
   # print in bold-face
   echo -e "\e[1mSuccessfully formatted all files.\e[0m"
 fi

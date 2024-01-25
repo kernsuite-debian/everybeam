@@ -99,6 +99,7 @@ class [[gnu::visibility("default")]] Station {
   aocommon::MC2x2 Response(CorrectionMode mode, real_t time, real_t freq,
                            const vector3r_t& direction, real_t freq0,
                            const vector3r_t& station0, const vector3r_t& tile0,
+                           const bool is_local = false,
                            const bool rotate = true) const {
     switch (mode) {
       case CorrectionMode::kNone:
@@ -108,7 +109,7 @@ class [[gnu::visibility("default")]] Station {
       case CorrectionMode::kArrayFactor:
         return ArrayFactor(time, freq, direction, freq0, station0, tile0);
       case CorrectionMode::kElement:
-        return ComputeElementResponse(time, freq, direction, false, rotate);
+        return ComputeElementResponse(time, freq, direction, is_local, rotate);
     }
     throw std::runtime_error("Invalid mode");
   }

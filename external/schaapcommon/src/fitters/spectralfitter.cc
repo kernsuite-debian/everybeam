@@ -3,6 +3,7 @@
 
 #include "spectralfitter.h"
 
+#include <cassert>
 #include <limits>
 
 #include "polynomialfitter.h"
@@ -15,60 +16,91 @@ namespace fitters {
 
 namespace {
 constexpr double kDefaultReferenceFrequency = 150.0e6;
-}
 
-void SpectralFitter::SetFrequencies(const double* frequencies,
-                                    const NumT* weights, size_t n) {
-  frequencies_.assign(frequencies, frequencies + n);
-  weights_.assign(weights, weights + n);
-  NumT weight_sum = 0.0;
-  reference_frequency_ = 0.0;
-  for (size_t i = 0; i != n; ++i) {
-    reference_frequency_ += frequencies_[i] * weights_[i];
-    weight_sum += weights_[i];
+double ComputeReferenceFrequency(
+    const std::vector<double>& frequencies,
+    const std::vector<SpectralFitter::NumT>& weights) {
+  SpectralFitter::NumT weight_sum = 0.0;
+  double reference_frequency = 0.0;
+  for (size_t i = 0; i != frequencies.size(); ++i) {
+    reference_frequency += frequencies[i] * weights[i];
+    weight_sum += weights[i];
   }
   if (weight_sum > 0.0) {
-    reference_frequency_ /= weight_sum;
+    reference_frequency /= weight_sum;
   } else {
-    reference_frequency_ = kDefaultReferenceFrequency;
+    reference_frequency = kDefaultReferenceFrequency;
   }
+
+  return reference_frequency;
+}
+}  // namespace
+
+SpectralFitter::SpectralFitter(SpectralFittingMode mode, size_t n_terms,
+                               std::vector<double> frequencies,
+                               std::vector<NumT> weights)
+    : mode_(mode),
+      n_terms_(n_terms),
+      frequencies_(std::move(frequencies)),
+      weights_(std::move(weights)),
+      reference_frequency_(ComputeReferenceFrequency(frequencies_, weights_)),
+      forced_terms_() {
+  if (frequencies_.size() != weights_.size()) {
+    throw std::invalid_argument(
+        "SpectralFitter: Frequency count does not match weight count.");
+  }
+}
+
+void SpectralFitter::SetForcedTerms(std::vector<aocommon::Image>&& terms) {
+  if (mode_ != SpectralFittingMode::kForcedTerms) {
+    throw std::runtime_error(
+        "SpectralFitter: Setting forced terms is only allowed in forced terms "
+        "mode.");
+  }
+  if (n_terms_ > 0) {
+    if (terms.size() < (n_terms_ - 1)) {
+      throw std::invalid_argument("SpectralFitter: Not enough forced terms.");
+    }
+    terms.resize(n_terms_ - 1);  // Delete unused terms.
+  }
+  forced_terms_ = std::move(terms);
 }
 
 void SpectralFitter::Fit(std::vector<NumT>& terms, const NumT* values, size_t x,
                          size_t y) const {
-  if (IsForced()) {
-    ForcedFit(terms, values, x, y);
-  } else {
-    switch (mode_) {
-      default:
-      case SpectralFittingMode::NoFitting:
-        break;
+  switch (mode_) {
+    default:
+    case SpectralFittingMode::kNoFitting:
+      break;
 
-      case SpectralFittingMode::Polynomial: {
-        PolynomialFitter fitter;
-        const double reference = ReferenceFrequency();
-        for (size_t i = 0; i != frequencies_.size(); ++i) {
-          if (weights_[i] > 0.0) {
-            fitter.AddDataPoint(frequencies_[i] / reference - 1.0, values[i],
-                                weights_[i]);
-          }
+    case SpectralFittingMode::kPolynomial: {
+      PolynomialFitter fitter;
+      const double reference = ReferenceFrequency();
+      for (size_t i = 0; i != frequencies_.size(); ++i) {
+        if (weights_[i] > 0.0) {
+          fitter.AddDataPoint(frequencies_[i] / reference - 1.0, values[i],
+                              weights_[i]);
         }
+      }
 
-        fitter.Fit(terms, n_terms_);
-      } break;
+      fitter.Fit(terms, n_terms_);
+    } break;
 
-      case SpectralFittingMode::LogPolynomial: {
-        NonLinearPowerLawFitter fitter;
-        const double reference = ReferenceFrequency();
-        for (size_t i = 0; i != frequencies_.size(); ++i) {
-          if (weights_[i] > 0.0) {
-            fitter.AddDataPoint(frequencies_[i] / reference, values[i]);
-          }
+    case SpectralFittingMode::kLogPolynomial: {
+      NonLinearPowerLawFitter fitter;
+      const double reference = ReferenceFrequency();
+      for (size_t i = 0; i != frequencies_.size(); ++i) {
+        if (weights_[i] > 0.0) {
+          fitter.AddDataPoint(frequencies_[i] / reference, values[i]);
         }
+      }
 
-        fitter.Fit(terms, n_terms_);
-      } break;
-    }
+      fitter.Fit(terms, n_terms_);
+    } break;
+
+    case SpectralFittingMode::kForcedTerms:
+      ForcedFit(terms, values, x, y);
+      break;
   }
 }
 
@@ -110,10 +142,11 @@ void SpectralFitter::Evaluate(NumT* values,
                               const std::vector<NumT>& terms) const {
   switch (mode_) {
     default:
-    case SpectralFittingMode::NoFitting:
+    case SpectralFittingMode::kNoFitting:
+    case SpectralFittingMode::kForcedTerms:
       break;
 
-    case SpectralFittingMode::Polynomial: {
+    case SpectralFittingMode::kPolynomial: {
       const double reference = ReferenceFrequency();
       for (size_t i = 0; i != frequencies_.size(); ++i) {
         values[i] = PolynomialFitter::Evaluate(
@@ -121,7 +154,7 @@ void SpectralFitter::Evaluate(NumT* values,
       }
     } break;
 
-    case SpectralFittingMode::LogPolynomial: {
+    case SpectralFittingMode::kLogPolynomial: {
       const double reference = ReferenceFrequency();
       for (size_t i = 0; i != frequencies_.size(); ++i) {
         values[i] = NonLinearPowerLawFitter::Evaluate(frequencies_[i], terms,
@@ -135,16 +168,17 @@ SpectralFitter::NumT SpectralFitter::Evaluate(const std::vector<NumT>& terms,
                                               double frequency) const {
   switch (mode_) {
     default:
-    case SpectralFittingMode::NoFitting:
+    case SpectralFittingMode::kNoFitting:
+    case SpectralFittingMode::kForcedTerms:
       throw std::runtime_error(
           "Something is inconsistent: can't evaluate terms at frequency "
           "without fitting");
 
-    case SpectralFittingMode::Polynomial:
+    case SpectralFittingMode::kPolynomial:
       return PolynomialFitter::Evaluate(frequency / ReferenceFrequency() - 1.0,
                                         terms);
 
-    case SpectralFittingMode::LogPolynomial:
+    case SpectralFittingMode::kLogPolynomial:
       return NonLinearPowerLawFitter::Evaluate(frequency, terms,
                                                ReferenceFrequency());
   }

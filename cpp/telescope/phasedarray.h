@@ -7,15 +7,14 @@
 #ifndef EVERYBEAM_TELESCOPE_PHASEDARRAY_H_
 #define EVERYBEAM_TELESCOPE_PHASEDARRAY_H_
 
+#include <memory>
+
+#include <casacore/measures/Measures/MDirection.h>
+
 #include "telescope.h"
 
 #include "../correctionmode.h"
 #include "../station.h"
-
-#include <casacore/measures/Measures/MPosition.h>
-#include <casacore/measures/Measures/MDirection.h>
-#include <casacore/measures/Measures/MEpoch.h>
-#include <memory>
 
 namespace everybeam {
 namespace telescope {
@@ -30,7 +29,7 @@ struct MSProperties {
 };
 
 //! PhasedArray telescope class, is parent to OSKAR and LOFAR
-class PhasedArray : public Telescope {
+class [[gnu::visibility("default")]] PhasedArray : public Telescope {
  public:
   /**
    * @brief Construct a new PhasedArray object
@@ -42,6 +41,12 @@ class PhasedArray : public Telescope {
       : Telescope(ms, options) {
     stations_.resize(nstations_);
   };
+
+  std::unique_ptr<griddedresponse::GriddedResponse> GetGriddedResponse(
+      const aocommon::CoordinateSystem& coordinate_system) const override;
+
+  std::unique_ptr<pointresponse::PointResponse> GetPointResponse(double time)
+      const override;
 
   /**
    * @brief Get station by index

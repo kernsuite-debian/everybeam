@@ -446,7 +446,8 @@ def fit_and_write_lobes_coeffs(
     y = sintheta.T * sinphi
 
     # NOTE: Always check that freqs are in Hz
-    apply_phasor(v_pol1, v_pol2, freq, positions, x, y)
+    if positions is not None:
+        apply_phasor(v_pol1, v_pol2, freq, positions, x, y)
 
     # X/Y-polarization
     E1, E1w = extract_electromagnetic_field(v_pol1, weights=weights)

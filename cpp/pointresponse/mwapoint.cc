@@ -13,12 +13,12 @@ void MWAPoint::Response(BeamMode /* beam_mode */, std::complex<float>* buffer,
                         double ra, double dec, double freq,
                         size_t /* station_idx */, size_t /* field_id */) {
   const telescope::MWA& mwatelescope =
-      static_cast<const telescope::MWA&>(*telescope_);
+      static_cast<const telescope::MWA&>(GetTelescope());
 
   // Only compute J2000 vectors if time was updated
-  if (has_time_update_) {
+  if (HasTimeUpdate()) {
     SetJ200Vectors();
-    has_time_update_ = false;
+    ClearTimeUpdate();
   }
 
   if (!tile_beam_) {
@@ -45,20 +45,19 @@ void MWAPoint::ResponseAllStations(BeamMode beam_mode,
                                    double dec, double freq, size_t) {
   Response(beam_mode, buffer, ra, dec, freq, 0.0, 0);
   // Just repeat nstations times
-  for (size_t i = 1; i != telescope_->GetNrStations(); ++i) {
+  for (size_t i = 1; i != GetTelescope().GetNrStations(); ++i) {
     std::copy_n(buffer, 4, buffer + i * 4);
   }
 }
 
 void MWAPoint::SetJ200Vectors() {
   const telescope::MWA& mwatelescope =
-      static_cast<const telescope::MWA&>(*telescope_);
+      static_cast<const telescope::MWA&>(GetTelescope());
   // lock, since casacore::Direction not thread-safe
   // The lock prevents different MWAPoints to calculate the
   // the station response simultaneously
   std::unique_lock<std::mutex> lock(mutex_);
-  casacore::MEpoch time_epoch(
-      casacore::Quantity(time_ + 0.5 * update_interval_, "s"));
+  casacore::MEpoch time_epoch(casacore::Quantity(GetIntervalMidPoint(), "s"));
   casacore::MeasFrame frame(mwatelescope.GetArrayPosition(), time_epoch);
 
   const casacore::MDirection::Ref hadec_ref(casacore::MDirection::HADEC, frame);

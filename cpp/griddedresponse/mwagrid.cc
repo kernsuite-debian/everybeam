@@ -60,18 +60,6 @@ void MWAGrid::Response(BeamMode /* beam_mode */, std::complex<float>* buffer,
   }
 }
 
-void MWAGrid::ResponseAllStations(BeamMode beam_mode,
-                                  std::complex<float>* buffer, double time,
-                                  double frequency,
-                                  [[maybe_unused]] size_t field_id) {
-  Response(beam_mode, buffer, time, frequency, 0, 0);
-  const size_t station_buffer = width_ * height_ * 4;
-  // Repeated copy for nstations
-  for (size_t i = 1; i != telescope_->GetNrStations(); ++i) {
-    std::copy_n(buffer, station_buffer, buffer + i * station_buffer);
-  }
-}
-
 void MWAGrid::MakeIntegratedSnapshot(BeamMode beam_mode,
                                      std::vector<aocommon::HMC4x4>& matrices,
                                      double time, double frequency,

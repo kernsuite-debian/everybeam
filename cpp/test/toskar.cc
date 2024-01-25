@@ -1,25 +1,25 @@
 // Copyright (C) 2020 ASTRON (Netherlands Institute for Radio Astronomy)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-#include <boost/test/unit_test.hpp>
-
-#include "../load.h"
-#include "../beammode.h"
-#include "../options.h"
-#include "../griddedresponse/oskargrid.h"
-#include "../pointresponse/oskarpoint.h"
-#include "../beamnormalisationmode.h"
-#include "../elementresponse.h"
 #include "../telescope/oskar.h"
+#include "../oskar/oskarelementresponse.h"
 
-#include "config.h"
 #include <complex>
 #include <cmath>
 #include <iostream>
 
+#include <boost/test/unit_test.hpp>
+
+#include "../load.h"
+#include "../beammode.h"
+#include "../beamnormalisationmode.h"
+#include "../elementresponse.h"
+#include "../griddedresponse/phasedarraygrid.h"
+#include "../options.h"
+#include "../pointresponse/phasedarraypoint.h"
 #include "../station.h"
 
-#include "../oskar/oskarelementresponse.h"
+#include "config.h"
 
 using aocommon::CoordinateSystem;
 using everybeam::BeamMode;
@@ -29,8 +29,8 @@ using everybeam::Load;
 using everybeam::Options;
 using everybeam::Station;
 using everybeam::griddedresponse::GriddedResponse;
-using everybeam::griddedresponse::OSKARGrid;
-using everybeam::pointresponse::OSKARPoint;
+using everybeam::griddedresponse::PhasedArrayGrid;
+using everybeam::pointresponse::PhasedArrayPoint;
 using everybeam::pointresponse::PointResponse;
 using everybeam::telescope::OSKAR;
 using everybeam::telescope::Telescope;
@@ -79,12 +79,12 @@ BOOST_AUTO_TEST_CASE(load_oskar) {
   // Get GriddedResponse pointer
   std::unique_ptr<GriddedResponse> grid_response =
       telescope->GetGriddedResponse(coord_system);
-  BOOST_CHECK(nullptr != dynamic_cast<OSKARGrid*>(grid_response.get()));
+  BOOST_CHECK(nullptr != dynamic_cast<PhasedArrayGrid*>(grid_response.get()));
 
   // Get PointResponse pointer
   std::unique_ptr<PointResponse> point_response =
       telescope->GetPointResponse(time);
-  BOOST_CHECK(nullptr != dynamic_cast<OSKARPoint*>(point_response.get()));
+  BOOST_CHECK(nullptr != dynamic_cast<PhasedArrayPoint*>(point_response.get()));
 
   // Define buffer and get gridded response (all stations)
   std::vector<std::complex<float>> antenna_buffer(

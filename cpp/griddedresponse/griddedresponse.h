@@ -69,8 +69,8 @@ class [[gnu::visibility("default")]] GriddedResponse {
       double frequency, size_t field_id) = 0;
 
   /**
-   * @brief Calculate integrated/undersampled beam for a single time step.
-   * This function makes use of @ref MakeIntegratedSnapshot(). Subclasses
+   * @brief Calculate baseline-integrated (undersampled) beam for a single time
+   * step. This function makes use of @ref MakeIntegratedSnapshot(). Subclasses
    * may override MakeIntegratedSnapshot() to implement a more efficient
    * version.
    *
@@ -90,7 +90,7 @@ class [[gnu::visibility("default")]] GriddedResponse {
                                   const std::vector<double>& baseline_weights);
 
   /**
-   * @brief Calculate integrated beam over multiple time steps.
+   * @brief Calculate baseline-integrated beam over multiple time steps.
    * This function makes use of @ref MakeIntegratedSnapshot(). Subclasses
    * may override MakeIntegratedSnapshot() to implement a more efficient
    * version. This function stores all Mueller matrices for the full size
@@ -179,6 +179,29 @@ class [[gnu::visibility("default")]] GriddedResponse {
                               int width_out, int height_out,
                               const std::vector<aocommon::HMC4x4>& matrices);
 
+  /**
+   * Fills the buffer by querying the response of the first antenna and copies
+   * it n_stations times. Telescopes with homogeneous antennas can use this
+   * function to implement @ref ResponseAllStations().
+   *
+   * @param buffer should be of size width * height * 4 * n_stations.
+   */
+  void HomogeneousAllStationResponse(BeamMode beam_mode,
+                                     std::complex<float> * buffer, double time,
+                                     double frequency, size_t field_id);
+
+  /**
+   * Fills the buffer by querying the response of the antennas one by one.
+   * Telescopes with heterogeneous antennas can use this function to implement
+   * @ref ResponseAllStations(). Homogeneous arrays can use the faster
+   * function @ref HomogeneousAllStationResponse() instead.
+   *
+   * @param buffer should be of size width * height * 4 * n_stations.
+   */
+  void InhomogeneousAllStationResponse(
+      BeamMode beam_mode, std::complex<float> * buffer, double time,
+      double frequency, size_t field_id);
+
   const telescope::Telescope* telescope_;
   size_t width_, height_;
   double ra_, dec_, dl_, dm_, l_shift_, m_shift_;
@@ -187,7 +210,7 @@ class [[gnu::visibility("default")]] GriddedResponse {
   /**
    * @brief Calculate a baseline-integrated snapshot.
    * By default, this function will request the response for all antennas and
-   * perform a weighted average. (Partly) homogenous arrays may implement a
+   * perform a weighted average. (Partly) homogeneous arrays may implement a
    * faster implementation by overriding this method.
    */
   virtual void MakeIntegratedSnapshot(

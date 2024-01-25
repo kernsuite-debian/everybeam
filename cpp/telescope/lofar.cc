@@ -3,9 +3,7 @@
 
 #include "lofar.h"
 #include "../griddedresponse/aartfaacgrid.h"
-#include "../griddedresponse/lofargrid.h"
 #include "../pointresponse/aartfaacpoint.h"
-#include "../pointresponse/lofarpoint.h"
 #include "../common/mathutils.h"
 #include "../common/casautils.h"
 #include "../msreadutils.h"
@@ -22,9 +20,7 @@ using everybeam::TelescopeType;
 using everybeam::ToString;
 using everybeam::griddedresponse::AartfaacGrid;
 using everybeam::griddedresponse::GriddedResponse;
-using everybeam::griddedresponse::LOFARGrid;
 using everybeam::pointresponse::AartfaacPoint;
-using everybeam::pointresponse::LOFARPoint;
 using everybeam::pointresponse::PointResponse;
 
 namespace everybeam {
@@ -130,7 +126,7 @@ std::unique_ptr<GriddedResponse> LOFAR::GetGriddedResponse(
   if (is_aartfaac_) {
     return std::make_unique<AartfaacGrid>(this, coordinate_system);
   } else {
-    return std::make_unique<LOFARGrid>(this, coordinate_system);
+    return PhasedArray::GetGriddedResponse(coordinate_system);
   }
 }
 
@@ -138,7 +134,7 @@ std::unique_ptr<PointResponse> LOFAR::GetPointResponse(double time) const {
   if (is_aartfaac_) {
     return std::make_unique<AartfaacPoint>(this, time);
   } else {
-    return std::make_unique<LOFARPoint>(this, time);
+    return PhasedArray::GetPointResponse(time);
   }
 }
 

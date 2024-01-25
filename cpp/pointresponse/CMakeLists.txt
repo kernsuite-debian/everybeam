@@ -2,12 +2,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 install(
-  FILES pointresponse.h
-        phasedarraypoint.h
-        aartfaacpoint.h
-        lofarpoint.h
-        oskarpoint.h
+  FILES aartfaacpoint.h
+        airypoint.h
         dishpoint.h
         mwapoint.h
+        pointresponse.h
+        phasedarraypoint.h
         skamidpoint.h
   DESTINATION "include/${CMAKE_PROJECT_NAME}/pointresponse")

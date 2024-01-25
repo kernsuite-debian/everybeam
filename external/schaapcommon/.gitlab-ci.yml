@@ -82,10 +82,17 @@ prepare-base-2204:
       optional: true
   image: $BASE_IMAGE_2204
 
-clang-format:
+format:
   extends: .needs-2204
   stage: linting
   script:
+    # Since schaapcommon does not include aocommon as git submodule, it has a
+    # copy of the format.sh script, which allows running run-format.sh
+    # in the source directory. Verify that the copy of format.sh equals
+    # the most recent version from aocommon.
+    - wget -O aocommon-format.sh https://gitlab.com/aroffringa/aocommon/raw/master/scripts/format.sh
+    - diff aocommon-format.sh scripts/format.sh
+    # Run the formatter
     - ./scripts/run-format.sh
 
 clang-tidy:
@@ -98,7 +105,6 @@ clang-tidy:
     - mkdir build && cd build
     - cmake -DAOCOMMON_INCLUDE_DIR=../aocommon/include -DCLANG_TIDY_FIXES_FILE=${CLANG_TIDY_FIXES} -DCLANG_TIDY_WERROR=ON -DBUILD_TESTING=ON ..
     - make check-clang-tidy
-  allow_failure: true
   artifacts:
     when: on_failure
     paths:
@@ -129,18 +135,27 @@ build-2204:
   stage: test
   script:
      - cd build/
-     - ctest -j`nproc` -T test
+     - ctest -j`nproc` --output-on-failure -T test
+     - mkdir coverage-unit
+     - gcovr -j`nproc` -r ../ -e '.*/external/.*' -e '.*/CompilerIdCXX/.*' -e '.*/test/.*' --txt coverage.txt --xml coverage.xml --html-details coverage-unit/coverage.html
+     - cat coverage.txt
 
 test-2004:
   extends: .test
   needs: ["versioning","build-2004"]
   image: $BASE_IMAGE_2004
-  after_script:
-    - gcovr -j`nproc` -r .. -e '.*/external/.*' -e '.*/CompilerIdCXX/.*' -e '.*/test/.*'
 
 test-2204:
   extends: .test
   needs: ["versioning","build-2204"]
   image: $BASE_IMAGE_2204
   after_script:
-    - gcovr -j`nproc` -r .. -e '.*/external/.*' -e '.*/CompilerIdCXX/.*' -e '.*/test/.*'
+     - cd build/
+     - tar cfz coverage-unit.tar.gz coverage-unit/
+  artifacts:
+    paths:
+      - build/coverage-unit.tar.gz
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: build/coverage.xml

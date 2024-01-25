@@ -16,7 +16,8 @@ class H5Parm : private H5::H5File {
  public:
   struct source_t {
     char name[128];
-    float dir[2];
+    /// in radians
+    double dir[2];
   };
 
   /// Open existing H5Parm or create a new one
@@ -70,7 +71,7 @@ class H5Parm : private H5::H5File {
   std::vector<source_t> GetSources() const;
 
   /// Get name of the source with coordinates closest to provided (ra, dec)
-  /// coordinates (in J2000)
+  /// coordinates (in J2000 and in radians)
   std::string GetNearestSource(double ra, double dec) const;
 
   /// Is the H5Parm implementation thread safe? If not, H5Parm does not support
