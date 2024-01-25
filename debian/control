@@ -3,7 +3,7 @@ Section: science
 Priority: optional
 Maintainer: KERN packaging <packaging@kernsuite.info>
 Build-Depends:
- debhelper-compat (= 12),
+ debhelper-compat (= 13),
  casacore-dev,
  cmake,
  doxygen,
@@ -23,6 +23,9 @@ Build-Depends:
  pybind11-dev,
  python3-distutils,
  wcslib-dev,
+ git-all,
+ libxtensor-blas-dev,
+ libxtensor-dev,
  wget
 Standards-Version: 4.6.2.0
 Homepage: https://git.astron.nl/RD/EveryBeam

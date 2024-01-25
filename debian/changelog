@@ -1,3 +1,10 @@
+everybeam (0.5.3-1kern1) jammy; urgency=medium
+
+  [ Athanasues Javas Ramaila ]
+  * New upstream version 0.5.3
+
+ -- KERN packaging <packaging@kernsuite.info>  Thu, 25 Jan 2024 09:30:29 +0000
+
 everybeam (0.5.2-1kern1) jammy; urgency=medium
 
   [ Athanaseus Javas Ramaila ]
