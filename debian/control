@@ -24,7 +24,7 @@ Build-Depends:
  python3-distutils,
  wcslib-dev,
  wget
-Standards-Version: 4.4.1
+Standards-Version: 4.6.2.0
 Homepage: https://git.astron.nl/RD/EveryBeam
 
 Package: everybeam
