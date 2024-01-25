@@ -3,5 +3,11 @@
 
 include(${SCHAAPCOMMON_SOURCE_DIR}/cmake/unittest.cmake)
 
-add_unittest(fitters runtests.cc tgaussianfitter.cc tnlplfitter.cc
-             tpolynomialfitter.cc)
+add_unittest(
+  fitters
+  runtests.cc
+  tgaussianfitter.cc
+  tnlplfitter.cc
+  tpolynomialchannelfitter.cc
+  tpolynomialfitter.cc
+  tspectralfitter.cc)

@@ -24,7 +24,9 @@ class [[gnu::visibility("default")]] MWAGrid final : public GriddedResponse {
 
   void ResponseAllStations(BeamMode beam_mode, std::complex<float> * buffer,
                            double time, double frequency, size_t field_id)
-      override;
+      override {
+    HomogeneousAllStationResponse(beam_mode, buffer, time, frequency, field_id);
+  }
 
  private:
   std::unique_ptr<everybeam::mwabeam::TileBeam2016> tile_beam_;

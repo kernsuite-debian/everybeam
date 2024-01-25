@@ -37,6 +37,9 @@ set(H5_SOLUTIONS_PATH
 set(KL_SCREEN_PATH
     ${DATA_DIR}/kl_screen_0.fits
     CACHE PATH "")
+set(LWA_MOCK_PATH
+    ${DATA_DIR}/LWA_OVRO_MOCK.ms
+    CACHE PATH "")
 set(LOBES_COEFF_PATH
     ${CMAKE_BINARY_DIR}/coeffs/lobes
     CACHE PATH "")
@@ -46,11 +49,14 @@ set(TEST_FILENAMES
     runtests.cc
     tatermconfig.cc
     telementresponsefixeddirection.cc
+    tsphericalharmonicsresponse.cc
     tgmrt.cc
     tgriddedresponse.cc
     tlofar_hba.cc
     tlofar_lba.cc
     tlofar_aartfaac.cc
+    tlwa.cc
+    tlwaelementresponse.cc
     tmwa.cc
     toskar.cc
     tphasedarraypoint.cc
@@ -94,6 +100,8 @@ add_custom_target(
           VLA_MOCK.ms
   COMMAND ${CMAKE_SOURCE_DIR}/scripts/download_ms.sh screentest_ms.tar.gz
           SCREEN_FITTING.ms
+  COMMAND ${CMAKE_SOURCE_DIR}/scripts/download_ms.sh lwa-ovro.MS.tar.bz2
+          LWA_OVRO_MOCK.ms
   COMMAND ${CMAKE_SOURCE_DIR}/scripts/download_h5_solutions.sh
   COMMAND ${CMAKE_SOURCE_DIR}/scripts/download_mwa_coeff.sh
   COMMAND ${CMAKE_SOURCE_DIR}/scripts/download_mock_h5parm.sh

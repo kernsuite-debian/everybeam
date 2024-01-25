@@ -17,7 +17,7 @@ SkaMidPoint::SkaMidPoint(const telescope::Telescope* telescope_ptr, double time,
     : DishPoint(telescope_ptr, time),
       element_response_model_(element_response_model) {
   const telescope::SkaMid& ska_mid =
-      static_cast<const telescope::SkaMid&>(*telescope_);
+      static_cast<const telescope::SkaMid&>(GetTelescope());
 
   switch (element_response_model_) {
     case ElementResponseModel::kSkaMidAnalytical:
@@ -35,7 +35,7 @@ void SkaMidPoint::Response([[maybe_unused]] BeamMode beam_mode,
                            double freq, [[maybe_unused]] size_t station_idx,
                            size_t field_id) {
   const telescope::SkaMid& ska_mid_telescope =
-      static_cast<const telescope::SkaMid&>(*telescope_);
+      static_cast<const telescope::SkaMid&>(GetTelescope());
 
   double pdir_ra;
   double pdir_dec;

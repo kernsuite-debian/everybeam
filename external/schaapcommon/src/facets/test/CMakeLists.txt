@@ -3,8 +3,11 @@
 
 include(${SCHAAPCOMMON_SOURCE_DIR}/cmake/unittest.cmake)
 
-add_unittest(facets runtests.cc tfacet.cc tfacetimage.cc tds9facetfile.cc)
+add_unittest(facets runtests.cc tfacet.cc tfacetimage.cc tds9facetfile.cc
+             tboundingbox.cc)
 
 # Copy test resources.
-configure_file(resources/foursources.reg
-               ${CMAKE_BINARY_DIR}/src/facets/test/foursources.reg COPYONLY)
+foreach(file empty.reg foursources.reg)
+  configure_file(resources/${file} ${CMAKE_BINARY_DIR}/src/facets/test/${file}
+                 COPYONLY)
+endforeach()

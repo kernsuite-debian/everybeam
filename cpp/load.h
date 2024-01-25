@@ -19,6 +19,7 @@ enum TelescopeType {
   kUnknownTelescope,
   kAARTFAAC,
   kATCATelescope,
+  kALMATelescope,
   kGMRTTelescope,
   kLofarTelescope,
   kMeerKATTelescope,
@@ -26,6 +27,7 @@ enum TelescopeType {
   kMWATelescope,
   kSkaMidTelescope,
   kVLATelescope,
+  kOvroLwaTelescope,
 };
 
 /**

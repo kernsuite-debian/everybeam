@@ -81,9 +81,6 @@ class [[gnu::visibility("default")]] PhasedArrayPoint
    * @param freq Frequency (Hz)
    * @param direction Direction in ITRF
    * @param element_idx Element index
-   * @param is_local Use local east-north-up system (true) or global coordinate
-   * system (false).
-   * @param rotate Apply parallactic angle rotation
    * @return aocommon::MC2x2
    */
   aocommon::MC2x2 ElementResponse(size_t station_idx, double freq,

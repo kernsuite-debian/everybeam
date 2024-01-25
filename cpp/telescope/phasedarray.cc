@@ -1,13 +1,28 @@
 // Copyright (C) 2021 ASTRON (Netherlands Institute for Radio Astronomy)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include <casacore/measures/TableMeasures/ArrayMeasColumn.h>
+
 #include "phasedarray.h"
 #include "../common/casautils.h"
-
-#include <casacore/measures/TableMeasures/ArrayMeasColumn.h>
+#include "../griddedresponse/phasedarraygrid.h"
+#include "../pointresponse/phasedarraypoint.h"
 
 namespace everybeam {
 namespace telescope {
+
+std::unique_ptr<griddedresponse::GriddedResponse>
+PhasedArray::GetGriddedResponse(
+    const aocommon::CoordinateSystem& coordinate_system) const {
+  return std::make_unique<griddedresponse::PhasedArrayGrid>(this,
+                                                            coordinate_system);
+}
+
+std::unique_ptr<pointresponse::PointResponse> PhasedArray::GetPointResponse(
+    double time) const {
+  return std::make_unique<pointresponse::PhasedArrayPoint>(this, time);
+}
+
 void PhasedArray::CalculatePreappliedBeamOptions(
     const casacore::MeasurementSet& ms, const std::string& data_column_name,
     casacore::MDirection& preapplied_beam_dir,

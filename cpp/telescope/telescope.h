@@ -6,14 +6,16 @@
 #ifndef EVERYBEAM_TELESCOPE_TELESCOPE_H_
 #define EVERYBEAM_TELESCOPE_TELESCOPE_H_
 
-#include "../options.h"
-
-#include <vector>
-#include <memory>
 #include <cassert>
+#include <memory>
+#include <vector>
+
 #include <casacore/ms/MeasurementSets/MeasurementSet.h>
 #include <casacore/ms/MeasurementSets/MSAntennaColumns.h>
+
 #include <aocommon/coordinatesystem.h>
+
+#include "../options.h"
 
 namespace everybeam {
 

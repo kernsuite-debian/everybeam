@@ -4,7 +4,6 @@
 #include "dishgrid.h"
 #include "../telescope/dish.h"
 #include "../circularsymmetric/voltagepattern.h"
-#include "../circularsymmetric/vlacoefficients.h"
 
 #include <aocommon/uvector.h>
 #include <aocommon/matrix2x2.h>
@@ -34,24 +33,12 @@ void DishGrid::Response([[maybe_unused]] BeamMode beam_mode,
       dish_telescope.GetDishCoefficients()->ReferenceFrequency();
   circularsymmetric::VoltagePattern vp(
       dish_telescope.GetDishCoefficients()->GetFrequencies(frequency),
-      max_radius_arc_min, reference_frequency);
+      max_radius_arc_min);
   const aocommon::UVector<double> coefs_vec =
       dish_telescope.GetDishCoefficients()->GetCoefficients(frequency);
-  vp.EvaluatePolynomial(coefs_vec, false);
+  vp.EvaluatePolynomial(coefs_vec, reference_frequency, false);
   vp.Render(buffer, width_, height_, dl_, dm_, ra_, dec_, pdir_ra, pdir_dec,
             l_shift_, m_shift_, frequency);
-}
-
-void DishGrid::ResponseAllStations(BeamMode beam_mode,
-                                   std::complex<float>* buffer, double,
-                                   double frequency, size_t field_id) {
-  Response(beam_mode, buffer, 0.0, frequency, 0, field_id);
-
-  const size_t station_buffer = width_ * height_ * 4;
-  // Just repeat nstations times
-  for (size_t i = 1; i != telescope_->GetNrStations(); ++i) {
-    std::copy_n(buffer, station_buffer, buffer + i * station_buffer);
-  }
 }
 
 void DishGrid::IntegratedResponse(

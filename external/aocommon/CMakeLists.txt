@@ -60,6 +60,7 @@ add_executable(
   tests/tmultibanddata.cpp
   tests/tparallelfor.cpp
   tests/tpolarization.cpp
+  tests/tpyuniqueptr.cpp
   tests/tqueue.cpp
   tests/tradeccoord.cpp
   tests/tstaticfor.cpp

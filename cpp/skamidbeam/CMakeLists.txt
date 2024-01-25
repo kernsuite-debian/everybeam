@@ -9,7 +9,6 @@ add_library(skamidbeam SHARED skamidanalyticalresponse.cc)
 string(TOLOWER ${CMAKE_PROJECT_NAME} projectname)
 set_target_properties(skamidbeam PROPERTIES LIBRARY_OUTPUT_NAME
                                             "${projectname}-skamidbeam")
-target_include_directories(skamidbeam PRIVATE ${Boost_INCLUDE_DIRS})
 
 # When other targets within this project link against the skamid target, make sure
 # they can find the include files.

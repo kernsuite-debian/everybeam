@@ -11,6 +11,7 @@
 #include "hamaker/hamakerelementresponse.h"
 #include "oskar/oskarelementresponse.h"
 #include "lobes/lobeselementresponse.h"
+#include "lwa/lwaelementresponse.h"
 #include "options.h"
 
 namespace everybeam {
@@ -42,6 +43,9 @@ std::shared_ptr<const ElementResponse> ElementResponse::GetInstance(
         }
         return std::make_shared<HamakerElementResponse>(name);
       }
+    case ElementResponseModel::kLwa:
+      // TODO AST-1385: use LwaElementResponse::GetInstance() instead
+      return std::make_shared<LwaElementResponse>();
     default:
       std::stringstream message;
       message << "The requested element response model '" << model

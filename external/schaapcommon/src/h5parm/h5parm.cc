@@ -15,6 +15,8 @@
 #include <hdf5.h>
 #include <iostream>
 
+#include <aocommon/imagecoordinates.h>
+
 #ifndef offsetof
 #error offsetof not supported by your compiler.
 #endif
@@ -86,9 +88,6 @@ H5Parm::~H5Parm() {
                 "source_t doesn't have standard layout");
   static_assert(std::is_standard_layout<antenna_t>::value,
                 "antenna_t doesn't have standard layout");
-  // Throw an error if the antenna or source table is not present
-  // sol_set_.openDataSet("antenna");
-  // sol_set_.openDataSet("source");
   sol_set_.close();
 }
 
@@ -110,7 +109,7 @@ void H5Parm::AddSources(const std::vector<std::string>& names,
   source_type.insertMember("name", offsetof(source_t, name),
                            H5::StrType(H5::PredType::C_S1, 128));
   source_type.insertMember("dir", offsetof(source_t, dir),
-                           H5::ArrayType(H5::PredType::NATIVE_FLOAT, 1, dims));
+                           H5::ArrayType(H5::PredType::NATIVE_DOUBLE, 1, dims));
 
   // Create dataset
   dims[0] = names.size();
@@ -200,9 +199,10 @@ std::string H5Parm::GetNearestSource(double ra, double dec) const {
 
   std::string dirname;
   double min_dist = std::numeric_limits<double>::max();
-  for (const auto& val : sources) {
-    const double current_dist = (val.dir[0] - ra) * (val.dir[0] - ra) +
-                                (val.dir[1] - dec) * (val.dir[1] - dec);
+  for (const source_t& val : sources) {
+    const double current_dist =
+        aocommon::ImageCoordinates::AngularDistance<double>(ra, dec, val.dir[0],
+                                                            val.dir[1]);
     if (current_dist < min_dist) {
       dirname = val.name;
       min_dist = current_dist;
@@ -235,14 +235,13 @@ std::vector<H5Parm::source_t> H5Parm::ReadSourceTable(
   // Create compound data type
   // Inferring this from the dataset with getDataType()
   // leads to unexpected errors.
-  hsize_t npdims[2];
-  npdims[0] = 2;  // Should store ra, dec
+  const hsize_t npdims[1] = {2};  // Should store ra, dec
   H5::CompType source_type(sizeof(source_t));
   source_type.insertMember("name", offsetof(source_t, name),
                            H5::StrType(H5::PredType::C_S1, 128));
   source_type.insertMember(
       "dir", offsetof(source_t, dir),
-      H5::ArrayType(H5::PredType::NATIVE_FLOAT, 1, npdims));
+      H5::ArrayType(H5::PredType::NATIVE_DOUBLE, 1, npdims));
   dataset.read(sources.data(), source_type);
   return sources;
 }

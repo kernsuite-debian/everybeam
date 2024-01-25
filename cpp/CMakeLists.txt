@@ -4,35 +4,43 @@
 project(everybeam_cpp)
 
 #------------------------------------------------------------------------------
-add_subdirectory(aterms)
-add_subdirectory(circularsymmetric)
-add_subdirectory(common)
-add_subdirectory(coords)
-add_subdirectory(griddedresponse)
-add_subdirectory(hamaker)
-add_subdirectory(lobes)
-add_subdirectory(oskar)
-add_subdirectory(pointresponse)
-add_subdirectory(skamidbeam)
-add_subdirectory(telescope)
-
-#------------------------------------------------------------------------------
 add_library(everybeam-core SHARED elementresponse.cc options.cc)
 target_include_directories(everybeam-core PRIVATE "${CMAKE_BINARY_DIR}")
 
 add_library(
   everybeam SHARED
   antenna.cc
-  elementresponse.cc
-  elementresponsefactory.cc
   beamformer.cc
   beamformeridenticalantennas.cc
   beamformerlofar.cc
   beamformerlofarhba.cc
   beamformerlofarlba.cc
+  circularsymmetric/atcacoefficients.cc
+  circularsymmetric/gmrtcoefficients.cc
+  circularsymmetric/meerkatcoefficients.cc
+  circularsymmetric/vlacoefficients.cc
+  circularsymmetric/voltagepattern.cc
+  common/sphericalharmonics.cc
+  common/fftresampler.cc
+  coords/itrfconverter.cc
+  coords/itrfdirection.cc
   element.cc
   elementhamaker.cc
+  elementresponse.cc
+  elementresponsefactory.cc
+  griddedresponse/aartfaacgrid.cc
+  griddedresponse/griddedresponse.cc
+  griddedresponse/dishgrid.cc
+  griddedresponse/mwagrid.cc
+  # Phased array telescopes (SKA, LOFAR)
+  griddedresponse/phasedarraygrid.cc
+  griddedresponse/skamidgrid.cc
   load.cc
+  lobes/lobeselementresponse.cc
+  msreadutils.cc
+  # MWA(beam) related
+  mwabeam/tilebeam2016.cc
+  mwabeam/beam2016implementation.cc
   options.cc
   # aterms
   # From CMake 3.12 onwards, the line below can be replaced by
@@ -40,28 +48,32 @@ add_library(
   # That way the dependencies of the aterms object library
   # will be automatically linked as well
   $<TARGET_OBJECTS:aterms>
-  # common
-  common/sphericalharmonics.cc
-  common/fftresampler.cc
-  coords/itrfconverter.cc
-  coords/itrfdirection.cc
-  msreadutils.cc
-  station.cc
   phasedarrayresponse.cc
+  pointresponse/phasedarraypoint.cc
+  pointresponse/dishpoint.cc
+  pointresponse/mwapoint.cc
+  pointresponse/skamidpoint.cc
+  sphericalharmonicsresponse.cc
+  sphericalharmonicsresponsefixeddirection.cc
+  station.cc
+  telescope/alma.cc
   telescope/lofar.cc
   telescope/dish.cc
+  telescope/lofar.cc
   telescope/mwa.cc
   telescope/phasedarray.cc
   telescope/oskar.cc
   telescope/skamid.cc
-  griddedresponse/griddedresponse.cc
-  griddedresponse/dishgrid.cc
-  griddedresponse/mwagrid.cc
   griddedresponse/aartfaacgrid.cc
+  griddedresponse/airygrid.cc
+  griddedresponse/dishgrid.cc
+  griddedresponse/griddedresponse.cc
+  griddedresponse/mwagrid.cc
   griddedresponse/skamidgrid.cc
-  pointresponse/phasedarraypoint.cc
+  pointresponse/airypoint.cc
   pointresponse/dishpoint.cc
   pointresponse/mwapoint.cc
+  pointresponse/phasedarraypoint.cc
   pointresponse/skamidpoint.cc
   circularsymmetric/atcacoefficients.cc
   circularsymmetric/gmrtcoefficients.cc
@@ -82,11 +94,11 @@ target_include_directories(
 target_include_directories(everybeam PRIVATE "${CMAKE_BINARY_DIR}")
 
 target_include_directories(everybeam PUBLIC ${CASACORE_INCLUDE_DIR})
-target_link_libraries(everybeam PUBLIC hamaker oskar lobes skamidbeam)
+target_link_libraries(everybeam PUBLIC hamaker oskar lwa skamidbeam)
 target_link_libraries(
   everybeam PUBLIC ${CASACORE_LIBRARIES} ${HDF5_CXX_LIBRARIES}
                    ${FFTW3F_LIBRARY} ${CFITSIO_LIBRARY})
-target_link_libraries(everybeam PRIVATE schaapcommon Threads::Threads
+target_link_libraries(everybeam PRIVATE schaapcommon Threads::Threads xtensor
                                         ${BLAS_LIBRARIES} ${LAPACK_LIBRARIES})
 
 install(
@@ -128,3 +140,16 @@ configure_file(
 install(FILES "${CMAKE_BINARY_DIR}/CMakeFiles/EveryBeamConfig.cmake"
               "${CMAKE_BINARY_DIR}/CMakeFiles/EveryBeamConfigVersion.cmake"
         DESTINATION "lib/${projectname}")
+
+add_subdirectory(aterms)
+add_subdirectory(circularsymmetric)
+add_subdirectory(common)
+add_subdirectory(coords)
+add_subdirectory(griddedresponse)
+add_subdirectory(hamaker)
+add_subdirectory(lobes)
+add_subdirectory(lwa)
+add_subdirectory(oskar)
+add_subdirectory(pointresponse)
+add_subdirectory(skamidbeam)
+add_subdirectory(telescope)

@@ -1,31 +1,32 @@
-// Copyright (C) 2020 ASTRON (Netherlands Institute for Radio Astronomy)
+// Copyright (C) 2023 ASTRON (Netherlands Institute for Radio Astronomy)
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 #include "oskar.h"
-#include "../griddedresponse/oskargrid.h"
-#include "../pointresponse/oskarpoint.h"
+
+#include <cassert>
+
+#include <aocommon/banddata.h>
+#include <casacore/measures/TableMeasures/ArrayMeasColumn.h>
+
 #include "../common/mathutils.h"
 #include "../common/casautils.h"
 #include "../msreadutils.h"
 
-#include <aocommon/banddata.h>
-#include <cassert>
-#include <casacore/measures/TableMeasures/ArrayMeasColumn.h>
-
 using casacore::MeasurementSet;
 using everybeam::Station;
 using everybeam::griddedresponse::GriddedResponse;
-using everybeam::griddedresponse::OSKARGrid;
-using everybeam::pointresponse::OSKARPoint;
 using everybeam::pointresponse::PointResponse;
 using everybeam::telescope::OSKAR;
 
 OSKAR::OSKAR(const MeasurementSet& ms, const Options& options)
     : PhasedArray(ms, options) {
-  if (options_.element_response_model == ElementResponseModel::kDefault) {
+  if (GetOptions().element_response_model == ElementResponseModel::kDefault) {
     options_.element_response_model = ElementResponseModel::kOSKARSphericalWave;
   }
-  ReadAllStations(ms, stations_.begin(), options_);
+  // OSKAR never uses the subband frequency.
+  options_.use_channel_frequency = true;
+
+  ReadAllStations(ms, stations_.begin(), GetOptions());
 
   aocommon::BandData band(ms.spectralWindow());
   casacore::ScalarMeasColumn<casacore::MDirection> delay_dir_col(
@@ -46,7 +47,7 @@ OSKAR::OSKAR(const MeasurementSet& ms, const Options& options)
 
   // Populate struct
   ms_properties_ = MSProperties();
-  ms_properties_.subband_freq = band.ReferenceFrequency();
+  ms_properties_.subband_freq = 0.0;  // Since use_channel_frequency == true
   ms_properties_.delay_dir = delay_dir_col(0);
   // tile_beam_dir has dummy values for OSKAR
   ms_properties_.tile_beam_dir = delay_dir_col(0);
@@ -54,13 +55,4 @@ OSKAR::OSKAR(const MeasurementSet& ms, const Options& options)
   ms_properties_.preapplied_correction_mode = preapplied_correction_mode;
   ms_properties_.channel_count = channel_count;
   ms_properties_.channel_freqs = channel_freqs;
-}
-
-std::unique_ptr<GriddedResponse> OSKAR::GetGriddedResponse(
-    const aocommon::CoordinateSystem& coordinate_system) const {
-  return std::make_unique<OSKARGrid>(this, coordinate_system);
-}
-
-std::unique_ptr<PointResponse> OSKAR::GetPointResponse(double time) const {
-  return std::make_unique<OSKARPoint>(this, time);
 }

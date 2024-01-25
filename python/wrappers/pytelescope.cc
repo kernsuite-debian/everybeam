@@ -140,6 +140,29 @@ class PyTelescope : public Telescope {
   }
 };
 
+py::array_t<std::complex<double>> StationResponse(PhasedArray& self,
+                                                  double time, size_t idx,
+                                                  double freq, bool rotate) {
+  check_station_index(idx, self.GetNrStations(), "station_response");
+  const ItrfConverter itrf_converter(time);
+  const vector3r_t direction =
+      itrf_converter.ToItrf(self.GetPreappliedBeamDirection());
+
+  std::unique_ptr<PointResponse> point_response = self.GetPointResponse(time);
+  PhasedArrayPoint& phased_array_point =
+      static_cast<PhasedArrayPoint&>(*point_response);
+  phased_array_point.SetParalacticRotation(rotate);
+
+  std::mutex mutex;
+  const aocommon::MC2x2 response =
+      (self.GetOptions().beam_normalisation_mode ==
+       BeamNormalisationMode::kPreApplied)
+          ? aocommon::MC2x2::Unity()
+          : phased_array_point.Response(BeamMode::kFull, idx, freq, direction,
+                                        &mutex);
+  return cast_matrix(response);
+}
+
 void init_telescope(py::module& m) {
   py::class_<Telescope, PyTelescope>(m, "Telescope")
       .def_property_readonly("is_time_relevant", &Telescope::GetIsTimeRelevant,
@@ -395,25 +418,7 @@ void init_telescope(py::module& m) {
           "station_response",
           [](PhasedArray& self, double time, size_t idx, double freq,
              bool rotate) -> py::array_t<std::complex<double>> {
-            check_station_index(idx, self.GetNrStations(), "station_response");
-            const ItrfConverter itrf_converter(time);
-            const vector3r_t direction =
-                itrf_converter.ToItrf(self.GetPreappliedBeamDirection());
-
-            std::unique_ptr<PointResponse> point_response =
-                self.GetPointResponse(time);
-            PhasedArrayPoint& phased_array_point =
-                static_cast<PhasedArrayPoint&>(*point_response);
-            phased_array_point.SetParalacticRotation(rotate);
-
-            std::mutex mutex;
-            const aocommon::MC2x2 response =
-                (self.GetOptions().beam_normalisation_mode ==
-                 BeamNormalisationMode::kPreApplied)
-                    ? aocommon::MC2x2::Unity()
-                    : phased_array_point.Response(BeamMode::kFull, idx, freq,
-                                                  direction, &mutex);
-            return cast_matrix(response);
+            return StationResponse(self, time, idx, freq, rotate);
           },
           R"pbdoc(
         Get station response in beam former direction for specified frequency.
@@ -446,10 +451,8 @@ void init_telescope(py::module& m) {
               throw std::runtime_error(
                   "Requested channel index exceeds channel count.");
             }
-            const double freq = self.GetChannelFrequency(channel);
-            py::object py_station_response =
-                py::cast(self).attr("station_response");
-            return py_station_response(time, idx, freq, rotate);
+            return StationResponse(self, time, idx,
+                                   self.GetChannelFrequency(channel), rotate);
           },
           R"pbdoc(
         Get station response in beam former direction for specified channel.
@@ -486,11 +489,9 @@ void init_telescope(py::module& m) {
 
             py::array_t<std::complex<double>> response(
                 {nr_channels, size_t(2), size_t(2)});
-            py::object obj = py::cast(self);
-            py::object py_station_response = obj.attr("station_response");
             for (size_t chan = 0; chan < nr_channels; ++chan) {
-              response[py::make_tuple(chan, py::ellipsis())] =
-                  py_station_response(time, idx, chan, rotate);
+              response[py::make_tuple(chan, py::ellipsis())] = StationResponse(
+                  self, time, idx, self.GetChannelFrequency(chan), rotate);
             }
             return response;
           },
@@ -521,15 +522,14 @@ void init_telescope(py::module& m) {
             const size_t nr_stations = self.GetNrStations();
             const size_t nr_channels = self.GetNrChannels();
 
-            py::object py_station_response =
-                py::cast(self).attr("station_response");
             py::array_t<std::complex<double>> response(
                 {nr_stations, nr_channels, size_t(2), size_t(2)});
 
             for (size_t sidx = 0; sidx < nr_stations; ++sidx) {
               for (size_t cidx = 0; cidx < nr_channels; ++cidx) {
                 response[py::make_tuple(sidx, cidx, py::ellipsis())] =
-                    py_station_response(time, sidx, cidx, rotate);
+                    StationResponse(self, time, sidx,
+                                    self.GetChannelFrequency(cidx), rotate);
               }
             }
             return response;

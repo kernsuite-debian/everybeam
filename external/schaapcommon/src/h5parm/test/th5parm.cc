@@ -228,7 +228,7 @@ BOOST_FIXTURE_TEST_CASE(axes, H5Fixture) {
   BOOST_CHECK_EQUAL(h5parm.GetNumSources(), 4u);
 
   // Return and check nearest source
-  BOOST_CHECK_EQUAL(h5parm.GetNearestSource(0.49, 0.49), "aaa");
+  BOOST_CHECK_EQUAL(h5parm.GetNearestSource(0.0, 0.1), "aaa");
   BOOST_CHECK_EQUAL(h5parm.GetNearestSource(1.0, 0.51), "ccc");
   BOOST_CHECK_EQUAL(h5parm.GetNearestSource(1.0, 0.49), "ddd");
 

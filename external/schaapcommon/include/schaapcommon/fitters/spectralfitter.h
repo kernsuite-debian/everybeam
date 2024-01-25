@@ -12,24 +12,19 @@ namespace schaapcommon {
 namespace fitters {
 
 enum class SpectralFittingMode {
-  NoFitting,    /*!< No fitting, each channel gets a separate solution */
-  Polynomial,   /*!< Use polynomial for spectral fitting. */
-  LogPolynomial /*!< Use double log polynomial for spectral fitting. */
+  kNoFitting,     /*!< No fitting, each channel gets a separate solution. */
+  kPolynomial,    /*!< Use polynomial for spectral fitting. */
+  kLogPolynomial, /*!< Use double log polynomial for spectral fitting. */
+  kForcedTerms    /*!< Use forced terms for spectral fitting. */
 };
 
 class SpectralFitter {
  public:
   using NumT = float;
 
-  SpectralFitter(SpectralFittingMode mode, size_t n_terms)
-      : mode_(mode), n_terms_(n_terms) {}
-
-  SpectralFittingMode Mode() const { return mode_; }
-
-  void SetMode(SpectralFittingMode mode, size_t n_terms) {
-    mode_ = mode;
-    n_terms_ = n_terms;
-  }
+  SpectralFitter(SpectralFittingMode mode, size_t n_terms,
+                 std::vector<double> frequencies = {},
+                 std::vector<NumT> weights = {});
 
   /**
    * Fit an array of values to a curve.
@@ -73,9 +68,9 @@ class SpectralFitter {
    * with the curve values. This function combines @ref Fit()
    * and @ref Evaluate().
    *
-   * @param terms is a UVector of any size, that is used to store the terms.
+   * @param terms is a vector of any size, that is used to store the terms.
    * Having this parameter explicitly is useful to avoid repeated allocation,
-   * to temporarily store the terms: This function is used in the reasonably
+   * to temporarily store the terms: This function is used in reasonably
    * critical loops inside deconvolution. It will be resized to @ref NTerms().
    */
   void FitAndEvaluate(NumT* values, size_t x, size_t y,
@@ -84,29 +79,31 @@ class SpectralFitter {
     Evaluate(values, terms);
   }
 
-  void SetFrequencies(const double* frequencies, const NumT* weights, size_t n);
-
-  double Frequency(size_t index) const { return frequencies_[index]; }
-
-  NumT Weight(size_t index) const { return weights_[index]; }
+  SpectralFittingMode Mode() const { return mode_; }
 
   size_t NTerms() const { return n_terms_; }
 
-  size_t NFrequencies() const { return frequencies_.size(); }
+  const std::vector<double>& Frequencies() const { return frequencies_; };
+
+  const std::vector<NumT>& Weights() const { return weights_; }
 
   double ReferenceFrequency() const { return reference_frequency_; }
 
-  void SetForcedImages(std::vector<aocommon::Image>&& images) {
-    forced_terms_ = std::move(images);
-  }
-
-  bool IsForced() const { return !forced_terms_.empty(); }
+  /**
+   * Update the forced terms, when using forced terms for spectral fitting.
+   *
+   * @param terms New terms. Force using move semantics for this argument, since
+   *        images are typically large.
+   * @throw std::runtime_error If the mode is not kForcedTerms.
+   * @throw std::invalid_argument If terms does not have enough elements.
+   */
+  void SetForcedTerms(std::vector<aocommon::Image>&& terms);
 
  private:
   void ForcedFit(std::vector<NumT>& terms, const NumT* values, size_t x,
                  size_t y) const;
 
-  enum SpectralFittingMode mode_;
+  SpectralFittingMode mode_;
   size_t n_terms_;
   std::vector<double> frequencies_;
   std::vector<NumT> weights_;

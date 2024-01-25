@@ -19,8 +19,8 @@ def radec_to_xyz(ra, dec, time):
     """
     obstime = Time(time / 3600 / 24, scale="utc", format="mjd")
     loc_LOFAR = EarthLocation(
-        lon=0.11990128407256424,
-        lat=0.9203091252660295,
+        lon=0.11990128407256424 * u.rad,
+        lat=0.9203091252660295 * u.rad,
         height=6364618.852935438 * u.m,
     )
 

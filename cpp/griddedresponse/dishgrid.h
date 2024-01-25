@@ -12,9 +12,8 @@ namespace everybeam {
 namespace griddedresponse {
 
 /**
- * @brief Class for computing the gridded response of dish telescopes,
- * e.g. VLA, ATCA, GMRT, SKA-MID
- *
+ * @brief Class for computing the gridded response of homogeneous dish
+ * telescopes, e.g. VLA, ATCA, GMRT, MeerKAT, SKA-MID.
  */
 class [[gnu::visibility("default")]] DishGrid : public GriddedResponse {
  public:
@@ -27,7 +26,9 @@ class [[gnu::visibility("default")]] DishGrid : public GriddedResponse {
 
   void ResponseAllStations(BeamMode beam_mode, std::complex<float> * buffer,
                            double time, double frequency, size_t field_id)
-      final override;
+      final override {
+    HomogeneousAllStationResponse(beam_mode, buffer, time, frequency, field_id);
+  }
 
   void IntegratedResponse(
       BeamMode beam_mode, float* buffer, double time, double frequency,

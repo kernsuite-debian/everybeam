@@ -12,6 +12,7 @@
 #include "beamformerlofarlba.h"
 #include "common/mathutils.h"
 #include "common/casautils.h"
+#include "sphericalharmonicsresponse.h"
 
 #include <casacore/measures/Measures/MDirection.h>
 #include <casacore/measures/Measures/MPosition.h>
@@ -277,22 +278,13 @@ std::shared_ptr<Antenna> ReadAntennaFieldLofar(
 }
 
 std::shared_ptr<Element> AartfaacElement(const MeasurementSet& ms,
-                                         size_t station_id) {
+                                         size_t station_id, size_t element_id) {
   Table table = common::GetSubTable(ms, "ANTENNA");
-
-  ScalarColumn<String> antenna_type_column(ms.observation(),
-                                           everybeam::kAartfaacAntennaTypeName);
-  const std::string ant_type = antenna_type_column(0);
 
   Antenna::CoordinateSystem coordinate_system =
       common::ReadAartfaacCoordinateSystem(table, station_id);
 
-  const size_t id = 0;
-  std::shared_ptr<Element> antenna =
-      std::make_shared<Element>(coordinate_system, id);
-  antenna->enabled_[0] = true;
-  antenna->enabled_[1] = true;
-  return antenna;
+  return std::make_shared<Element>(coordinate_system, element_id);
 }
 
 std::shared_ptr<BeamFormer> ReadAntennaFieldMSv3(const Table& table,
@@ -391,11 +383,12 @@ std::unique_ptr<Station> ReadSingleStation(const casacore::MeasurementSet& ms,
   TelescopeType telescope_type = GetTelescopeType(ms);
   if (telescope_type != TelescopeType::kLofarTelescope &&
       telescope_type != TelescopeType::kAARTFAAC &&
-      telescope_type != TelescopeType::kOSKARTelescope) {
+      telescope_type != TelescopeType::kOSKARTelescope &&
+      telescope_type != TelescopeType::kOvroLwaTelescope) {
     throw std::runtime_error(
         "MSReadUtils found an unknown telescope type in MS, return value of "
         "GetTelescopeType(ms) should be one of "
-        "kLofarTelescope, kAARTFAAC, or kOSKARTelescope.");
+        "kLofarTelescope, kAARTFAAC, kOSKARTelescope or kOvroLwaTelescope.");
   }
 
   ROMSAntennaColumns antenna(ms.antenna());
@@ -417,6 +410,13 @@ std::unique_ptr<Station> ReadSingleStation(const casacore::MeasurementSet& ms,
   if (telescope_type == TelescopeType::kOSKARTelescope) {
     // OSKAR telescope
     station->SetAntenna(MSv3StationBeamFormer(ms, id));
+  } else if (telescope_type == TelescopeType::kOvroLwaTelescope) {
+    // LWA telescope
+    // TODO (AST-1386): Read the coordinate system from the LWA MS.
+    const Antenna::CoordinateSystem coordinate_system{};
+    const size_t element_id = 0;
+    station->SetAntenna(
+        std::make_shared<Element>(coordinate_system, element_id));
   } else {
     // LOFAR Telescope or AARTFAAC
     station->SetPhaseReference(ReadStationPhaseReference(ms.antenna(), id));
@@ -425,7 +425,14 @@ std::unique_ptr<Station> ReadSingleStation(const casacore::MeasurementSet& ms,
           LofarStationBeamFormer(ms, id, station->GetPhaseReference(),
                                  station->GetElementResponse()->GetModel()));
     } else if (telescope_type == TelescopeType::kAARTFAAC) {
-      station->SetAntenna(AartfaacElement(ms, id));
+      std::size_t element_index = 0;
+      auto element_response =
+          std::dynamic_pointer_cast<const SphericalHarmonicsResponse>(
+              station->GetElementResponse());
+      if (element_response && element_response->HasFixedElementIndex()) {
+        element_index = element_response->GetElementIndex();
+      }
+      station->SetAntenna(AartfaacElement(ms, id, element_index));
     }
   }
   return station;

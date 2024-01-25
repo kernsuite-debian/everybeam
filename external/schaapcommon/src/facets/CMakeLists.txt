@@ -10,7 +10,8 @@ set(PUBLIC_HEADERS "${PUBLIC_HEADER_DIR}/facet.h"
 
 target_sources(
   ${SCHAAPCOMMON_PROJECT_NAME}
-  PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/facet.cc
+  PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/boundingbox.cc
+          ${CMAKE_CURRENT_SOURCE_DIR}/facet.cc
           ${CMAKE_CURRENT_SOURCE_DIR}/facetimage.cc)
 
 # Simplifies including the public headers.

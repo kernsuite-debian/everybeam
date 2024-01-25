@@ -1,18 +1,5 @@
-# Copyright (C) 2020 ASTRON (Netherlands Institute for Radio Astronomy)
+# Copyright (C) 2023 ASTRON (Netherlands Institute for Radio Astronomy)
 # SPDX-License-Identifier: GPL-3.0-or-later
-
-#------------------------------------------------------------------------------
-# directory for config.h
-include_directories(${CMAKE_BINARY_DIR})
-
-#------------------------------------------------------------------------------
-add_library(lobes SHARED lobeselementresponse.cc
-                         ${CMAKE_SOURCE_DIR}/cpp/common/sphericalharmonics.cc)
-target_include_directories(lobes PUBLIC ${HDF5_INCLUDE_DIRS})
-target_link_libraries(lobes PUBLIC ${HDF5_CXX_LIBRARIES} everybeam-core)
-string(TOLOWER ${CMAKE_PROJECT_NAME} projectname)
-set_target_properties(lobes PROPERTIES LIBRARY_OUTPUT_NAME
-                                       "${projectname}-lobes")
 
 #------------------------------------------------------------------------------
 if(DOWNLOAD_LOBES OR BUILD_TESTING)
@@ -26,15 +13,8 @@ if(DOWNLOAD_LOBES OR BUILD_TESTING)
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/coeffs/lobes)
 
   #Execute downloading of LOBEs coefficients here
-  add_dependencies(lobes download_lobes_coefficients)
+  add_dependencies(everybeam download_lobes_coefficients)
 endif()
-
-#------------------------------------------------------------------------------
-# Install
-install(
-  TARGETS lobes
-  EXPORT EveryBeamTargets
-  DESTINATION lib)
 
 # install coefficients
 message("install lobes coefficients in: " ${EVERYBEAM_FULL_DATADIR}/lobes)

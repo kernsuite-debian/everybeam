@@ -35,7 +35,8 @@ enum class ElementResponseModel {
   kOSKARSphericalWave = 5,
   kSkaMidAnalytical = 6,
   kAartfaacInner = 7,
-  kAartfaacOuter = 8
+  kAartfaacOuter = 8,
+  kLwa = 9
 };
 
 [[gnu::visibility("default")]] std::ostream& operator<<(
@@ -76,7 +77,6 @@ class [[gnu::visibility("default")]] ElementResponse
   /**
    * @brief Virtual implementation of Response method
    *
-   * @param cache Cached data from CacheDirection().
    * @param freq Frequency of the plane wave (Hz).
    * @param theta Angle wrt. z-axis (rad)
    * @param phi Angle in the xy-plane wrt. x-axis  (rad)
@@ -88,7 +88,6 @@ class [[gnu::visibility("default")]] ElementResponse
   /**
    * @brief Virtual implementation of Response method
    *
-   * @param cache Cached data from CacheDirection().
    * @param element_id ID of element
    * @param freq Frequency of the plane wave (Hz).
    * @param theta Angle wrt. z-axis (rad)
